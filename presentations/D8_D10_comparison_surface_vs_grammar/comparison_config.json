@@ -1,0 +1,25 @@
+{
+  "D_values": [
+    8,
+    10
+  ],
+  "n_simulations": 80,
+  "n_games": 30,
+  "n_iterations": 10,
+  "seed": 42,
+  "mcts_params": {
+    "n_simulations": 80,
+    "temperature": 1.0,
+    "c_exploration": 1.5,
+    "dirichlet_alpha": 0.25,
+    "dirichlet_epsilon": 0.4,
+    "rollout_n": 4,
+    "rollout_mode": "max",
+    "rollout_blend": 0.3,
+    "rollout_budget": 200,
+    "backup_rule": "max",
+    "backup_topk": 3,
+    "backup_tau": 0.1
+  },
+  "timestamp": "20260326_155015"
+}
