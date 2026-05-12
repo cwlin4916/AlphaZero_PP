@@ -1,5 +1,0 @@
-\beamer@sectionintoc {1}{Background: AlphaZero}{3}{0}{1}
-\beamer@sectionintoc {2}{The Doors Problem}{6}{0}{2}
-\beamer@sectionintoc {3}{The D=14 Failure}{9}{0}{3}
-\beamer@sectionintoc {4}{Systematic Small-Scale Verification}{11}{0}{4}
-\beamer@sectionintoc {5}{Diagnosis and Conclusions}{19}{0}{5}

@@ -111,6 +111,23 @@ experiments/
 *.fdb_latexmk
 *.fls
 *.synctex.gz
+*.nav
+*.snm
+*.toc
+
+######################################
+# Heavy artifacts kept out of the repo
+######################################
+# external papers (not redistributed in-repo)
+/papers/
+/docs/papers/
+# presentation build artifacts (PDFs/aux/etc.)
+/docs/presentations/improvementv1/
+# results-companion figures & run data (regenerable from driver scripts)
+docs/notes/**/figures/
+docs/notes/**/data/
+# local Claude Code settings
+.claude/
 
 ######################################
 # Misc
