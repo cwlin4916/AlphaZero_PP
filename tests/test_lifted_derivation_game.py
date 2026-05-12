@@ -110,11 +110,15 @@ def test_clone_and_stash_state_round_trip():
     assert twin.leaf_evaluator is game.leaf_evaluator  # evaluator stays shared, not deep-copied
 
 
-@pytest.mark.parametrize("n_sims", [16, 32])
-def test_derivation_game_smoke_with_uniform_mcts(n_sims):
-    cfg = LiftedGrammarConfig(max_rules=3)
+@pytest.mark.parametrize(
+    "n_balls,max_rules,n_sims",
+    [(1, 3, 16), (1, 3, 32), (2, 4, 16)],   # a B=1 and a B=2 uniform-MCTS smoke
+)
+def test_derivation_game_smoke_with_uniform_mcts(n_balls, max_rules, n_sims):
+    cfg = LiftedGrammarConfig(max_rules=max_rules)
     sig = gripper_lite_signature()
-    ev = _evaluator(n_train=1, n_eval_out=2)
+    # Stage-2 minimal: same-B train and eval (no generalization claim).
+    ev = _evaluator(n_train=n_balls, n_eval_out=n_balls)
     game = LiftedDerivationGame(cfg, sig, ev)
     game.reset_wrapper()
     net = UniformPolicyValueNet(game._max_productions)

@@ -1,0 +1,27 @@
+{
+  // Codespace for the Stage-4 lifted-policy AlphaZero experiments.
+  // Codespaces checks out only git-tracked files (~3 MB of src/ + tests/ + scripts/ + docs/),
+  // not the gitignored experiments/ tree, so the container starts small.
+  "name": "alphazeropp-lifted",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
+
+  // Floor at 8 cores / 32 GB. Pick a bigger machine in "New with options…" if your plan allows;
+  // the grid drivers default --jobs to (cpu_count - 1), so one core always stays free.
+  "hostRequirements": { "cpus": 8, "memory": "16gb", "storage": "32gb" },
+
+  "features": { "ghcr.io/devcontainers/features/git:1": {} },
+
+  // CPU-only torch wheel: the default (CUDA) wheel is ~2.5 GB and unused on a CPU Codespace —
+  // torch is imported transitively by core/policy_value_net.py but never exercised by
+  // UniformPolicyValueNet, which is all the lifted minimal-MCTS path uses.
+  "postCreateCommand": "pip install --upgrade pip && pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt && pip install -e .",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-python.vscode-pylance"],
+      "settings": { "python.testing.pytestEnabled": true }
+    }
+  },
+
+  "remoteEnv": { "PYTHONUNBUFFERED": "1" }
+}

@@ -1,12 +1,18 @@
 # 00 — Lifted-policy program synthesis with AlphaZero MCTS (orientation)
 
+> **Superseded by [01_draft_lifted_policy_az.md](01_draft_lifted_policy_az.md)** — kept for
+> provenance. The rewrite replaces the standalone-`Aux` derivation grammar (§6 below) with a
+> proposed occurrence-introduced-variable grammar, adds a literature-positioning section and a
+> Doors-PDDL contract, and updates cross-links: the numbered Stage-1/2/3 notes now live under
+> [`legacy/`](legacy/).
+
 ## §0 Status and reading guide
 
 This is the project's **orientation and theory document**. It fixes the problem, the
 two-level architecture, the Gripper-lite MDP, the lifted-policy semantics, and the
-synthesis game. Stage 1 ([01_plan.md](01_plan.md), [01.md](01.md)) implemented the typed
+synthesis game. Stage 1 ([01_plan.md](legacy/01_plan.md), [01.md](legacy/01.md)) implemented the typed
 lifted DSL, the online-unification interpreter, and the `gripper_lite` env; Stage 2
-([02_plan.md](02_plan.md)) implemented the lifted grammar, `LiftedDerivationGame`, the
+([02_plan.md](legacy/02_plan.md)) implemented the lifted grammar, `LiftedDerivationGame`, the
 node encoding, and the leaf evaluator. This document is not an experiment report — it is
 the framing the stage plans instantiate.
 
@@ -216,9 +222,9 @@ determinism, **not** arbitrary-renaming equivariance. The Stage-1 renaming test 
 renamings ($\textit{ball\_0}\!\mapsto\!\textit{foo}$, $\textit{room\_a}\!\mapsto\!\textit{left\_room}$,
 $B=1$), so it demonstrates that rule structure and binding do not hard-code object names —
 not full permutation equivariance. The same caveat is restated and cross-linked in
-[01.md §4](01.md#4-object-renaming-name-agnostic-matching-not-full-permutation-equivariance)
+[01.md §4](legacy/01.md#4-object-renaming-name-agnostic-matching-not-full-permutation-equivariance)
 and revisited as hypothesis H4 (grammar-connectedness) in
-[02.md](02.md) §H4 of the Stage-2.5 rewrite, which adds the
+[02.md](legacy/02.md) §H4 of the Stage-2.5 rewrite, which adds the
 `require_goal_var_connected` ablation to prevent the disconnected-aux pathology
 seen in Stage 2's best learned policy.
 
@@ -271,8 +277,8 @@ $$\boxed{\;\mathrm{plan\_length}(B) = 3 + 4(B-1) = 4B-1\;}$$
 | Stage | Question | Status |
 |---|---|---|
 | 0 ([this doc](00_draft_lifted_policy_az.md)) | What is the question, and what design space does it live in? | orientation |
-| 1 ([01_plan.md](01_plan.md), [01.md](01.md)) | Does lifted dispatch execute correctly, without MCTS? | **done** — DSL + interpreter + Gripper-lite; 4-rule policy solves $B\in\{1,2,3\}$ |
-| 2 ([02_plan.md](02_plan.md)) | Can grammar-MCTS generate *and* evaluate lifted policies? | **landed** — `LiftedDerivationGame` + grammar + encoding + leaf evaluator; Gripper-lite uniform-MCTS smoke runs A/B |
+| 1 ([01_plan.md](legacy/01_plan.md), [01.md](legacy/01.md)) | Does lifted dispatch execute correctly, without MCTS? | **done** — DSL + interpreter + Gripper-lite; 4-rule policy solves $B\in\{1,2,3\}$ |
+| 2 ([02_plan.md](legacy/02_plan.md)) | Can grammar-MCTS generate *and* evaluate lifted policies? | **landed** — `LiftedDerivationGame` + grammar + encoding + leaf evaluator; Gripper-lite uniform-MCTS smoke runs A/B |
 | 3 | Can a learned policy/value net improve the search? | future |
 | 4 | Does the approach scale / generalize beyond Gripper-lite? | future |
 
@@ -322,7 +328,7 @@ grammars.)
   [gripper_lite/env.py](../../src/alphazeropp/instances/gripper_lite/env.py) ·
   [gripper_lite/policies.py](../../src/alphazeropp/instances/gripper_lite/policies.py) ·
   [tests/test_gripper_lite_policy.py](../../tests/test_gripper_lite_policy.py).
-- Sibling stage-4 notes: [01_plan.md](01_plan.md) / [01.md](01.md) (Stage 1) ·
-  [02_plan.md](02_plan.md) (Stage 2) · [literature_orientation.md](literature_orientation.md) ·
+- Sibling stage-4 notes: [01_plan.md](legacy/01_plan.md) / [01.md](legacy/01.md) (Stage 1) ·
+  [02_plan.md](legacy/02_plan.md) (Stage 2) · [literature_orientation.md](literature_orientation.md) ·
   [proposals_lifted_policy_az.md](proposals_lifted_policy_az.md).
 - [notes_hand_policy_plan_length.md](notes_hand_policy_plan_length.md) — full proof of §7 (Lemmas 1–2, Rest-$k$ induction, rollout/trace figures).

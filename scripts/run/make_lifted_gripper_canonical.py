@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Regenerate the canonical Stage-2 (lifted grammar × MCTS) run artifacts.
 
+Legacy: this driver predates the occurrence-introduced-variable grammar
+(``docs/notes/stage4/02_plan.md``) and the current Stage-2 minimal-MCTS data
+(``data/minimal_mcts/`` via ``make_lifted_gripper_mcts_minimal.py``); it is kept
+as the aux-var-grammar record. If ever re-run, it would adopt the same
+``scripts/run/_parallel`` cell fan-out (``--jobs``) as ``make_lifted_gripper_mcts_minimal``.
+
+
 Runs ``run_lifted_gripper_lite_smoke.py`` for the canonical cells reported in
 ``docs/notes/stage4/02.md`` §6 — Run A (B=1 train, B=2 eval-out, ≤3 rules, 128
 sims, seed 0; also a 512-sim variant for the "more search ≠ better solver"
@@ -81,7 +88,11 @@ def _run_one(label: str, spec: dict) -> dict:
     stem = spec["stem"]
     best_raw = RAW_DIR / f"{stem}_best.jsonl"
     all_raw = RAW_DIR / f"{stem}_all.jsonl"
-    cmd = [sys.executable, str(SMOKE), *spec["args"],
+    # Stage 3-A flipped the grammar-safety flags to default-ON; the Stage-2/2.5
+    # canonical numbers in docs/notes/stage4/02.md (Table 1, the figures) were
+    # produced under the *legacy* permissive grammar, so pin it here. Use the
+    # Stage-3-A diagnostic-grid driver for the strict-vs-legacy comparison.
+    cmd = [sys.executable, str(SMOKE), *spec["args"], "--grammar", "legacy",
            "--out-jsonl", str(best_raw), "--dump-all-jsonl", str(all_raw)]
     print(f"[canonical] {label}: {' '.join(cmd)}", flush=True)
     subprocess.run(cmd, check=True)

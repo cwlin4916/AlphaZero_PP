@@ -1,11 +1,16 @@
 """Derivation state machine + ``Game`` wrapper for the lifted-policy grammar.
 
-Stage 2 — see ``docs/notes/stage4/02_plan.md`` §2.2. ``LiftedDerivationState``
-is a frozen value; ``apply`` returns a fresh state and never mutates ``self``.
+Stage 2 — see ``docs/notes/stage4/02_plan.md``. ``LiftedDerivationState`` is a
+frozen value; ``apply`` returns a fresh state and never mutates ``self``.
 ``LiftedDerivationGame`` mirrors ``DerivationGame``'s ``Game`` surface so the
 existing ``MCTS`` engine drives it unchanged; ``stash_state`` keeps the leaf
 evaluator *shared* (the base-class deepcopy default would clone its cache on
 every simulation).
+
+Variables are **occurrence-introduced** (no ``Aux`` phase): action arguments
+enter scope when the schema is chosen; body-local variables (``?v_0, ?v_1, …``)
+are born inside the precondition literal that first uses them; goal literals
+introduce none.
 """
 
 from __future__ import annotations
@@ -29,7 +34,6 @@ from alphazeropp.synthesis.lifted_grammar import (
     DomainSignature,
     LiftedGrammarConfig,
     LiftedProduction,
-    aux_var_name,
     compute_max_productions,
     enumerate_productions,
 )
@@ -43,19 +47,19 @@ from alphazeropp.synthesis.lifted_grammar import (
 class PartialRule:
     schema: str | None
     action_args: tuple[Var, ...]
-    aux_vars: tuple[Var, ...]
+    body_local_vars: tuple[Var, ...]   # grown lazily as pre_lit literals introduce fresh vars
     state_lits: tuple[Literal, ...]
     goal_lits: tuple[Literal, ...]
 
     @staticmethod
     def empty() -> "PartialRule":
-        return PartialRule(schema=None, action_args=(), aux_vars=(),
+        return PartialRule(schema=None, action_args=(), body_local_vars=(),
                            state_lits=(), goal_lits=())
 
     def all_vars(self) -> tuple[Var, ...]:
         seen: set[str] = set()
         out: list[Var] = []
-        for v in self.action_args + self.aux_vars:
+        for v in self.action_args + self.body_local_vars:
             if v.name not in seen:
                 seen.add(v.name)
                 out.append(v)
@@ -71,9 +75,9 @@ class PartialRule:
 @dataclass(frozen=True)
 class LiftedDerivationState:
     """``current_hole`` is one of ``"policy"`` / ``"action_schema"`` /
-    ``"aux_var"`` / ``"pre_lit"`` / ``"goal_lit"`` while building, or ``None``
-    once the policy is finished (terminal). ``partial`` is non-``None`` iff a
-    rule is in progress."""
+    ``"pre_lit"`` / ``"goal_lit"`` while building, or ``None`` once the policy
+    is finished (terminal). ``partial`` is non-``None`` iff a rule is in
+    progress."""
     completed_rules: tuple[Rule, ...]
     partial: PartialRule | None
     current_hole: str | None
@@ -104,27 +108,22 @@ class LiftedDerivationState:
             action_args = tuple(
                 Var(f"?{t[0] if t else 'x'}_{i}", t) for i, t in enumerate(arg_types)
             )
-            return replace(self, current_hole="aux_var",
+            return replace(self, current_hole="pre_lit",
                            partial=replace(p, schema=schema_name, action_args=action_args))
 
-        if kind == "aux_var":
-            if tag == "skip_aux":
-                return replace(self, current_hole="pre_lit")
-            if tag == "add_aux":                  # ("add_aux", type_name)
-                t = prod.payload[1]
-                new_aux = p.aux_vars + (Var(aux_var_name(len(p.aux_vars)), t),)
-                # Stage 2: max_aux_vars == 1, so go straight to pre_lit.
-                return replace(self, current_hole="pre_lit", partial=replace(p, aux_vars=new_aux))
-
         if kind == "pre_lit":
-            if tag == "add":                      # ("add", literal)
-                lit = prod.payload[1]
-                return replace(self, partial=replace(p, state_lits=p.state_lits + (lit,)))
+            if tag == "add":                      # ("add", literal, new_body_local_vars)
+                _, lit, new_vars = prod.payload
+                return replace(self, partial=replace(
+                    p,
+                    state_lits=p.state_lits + (lit,),
+                    body_local_vars=p.body_local_vars + tuple(new_vars),
+                ))
             if tag == "stop_pre":
                 return replace(self, current_hole="goal_lit")
 
         if kind == "goal_lit":
-            if tag == "add":                      # ("add", literal)
+            if tag == "add":                      # ("add", literal, ())
                 lit = prod.payload[1]
                 return replace(self, partial=replace(p, goal_lits=p.goal_lits + (lit,)))
             if tag == "finish":
@@ -152,10 +151,10 @@ class LiftedDerivationState:
             body = " ∧ ".join(l.pretty() for l in (p.state_lits + p.goal_lits)) or "⊤"
             act = (f"{p.schema}({', '.join(v.name for v in p.action_args)})"
                    if p.schema else "?")
-            # variable list carries types: an auxiliary variable's name (?aux_0)
-            # alone is type-ambiguous (ball vs room), and two such states have
-            # different production sets — so the type must be in the node key.
-            vsig = ",".join(f"{v.name}:{v.type_name}" for v in (p.action_args + p.aux_vars))
+            # the variable list carries types: a body-local variable's name
+            # (?v_0) alone is type-ambiguous (ball vs room), and two such states
+            # have different production sets — so the type must be in the node key.
+            vsig = ",".join(f"{v.name}:{v.type_name}" for v in (p.action_args + p.body_local_vars))
             lines.append(f"<@{self.current_hole}: {body} ⇒ {act} | vars=[{vsig}]>")
         elif self.current_hole == "policy":
             lines.append("<@policy>")

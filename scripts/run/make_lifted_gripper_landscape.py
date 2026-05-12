@@ -2,6 +2,12 @@
 """Regenerate the committed Stage-2.5 landscape artifacts under
 ``docs/notes/stage4/data/``.
 
+Legacy: incompatible with the occurrence-introduced-variable grammar — it still
+passes ``max_aux_vars`` to ``LiftedGrammarConfig`` (removed; see
+``docs/notes/stage4/02_plan.md``). Kept as the aux-var-grammar record; not
+ported. If ever revived, it would adopt the ``scripts/run/_parallel`` cell
+fan-out (``--jobs``) like ``make_lifted_gripper_mcts_minimal``.
+
 Runs ``analyze_lifted_gripper_landscape.py`` for two canonical configs ×
 four grammar-safety constraint settings:
 

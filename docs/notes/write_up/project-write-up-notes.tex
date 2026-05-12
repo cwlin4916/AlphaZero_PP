@@ -1,0 +1,161 @@
+\documentclass[11pt, a4paper]{article}
+
+% --- Encoding & Fonts ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+% --- Layout & Formatting ---
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}   % Professional tables
+\usepackage{enumitem}   % Custom lists
+\usepackage{xcolor}     % Colors
+
+% in the preamble
+\usepackage{graphicx}
+\usepackage{tikz-cd}
+% --- Math Packages ---
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{stmaryrd} % for \llbracket and \rrbracket
+\usepackage{amsthm}     % <--- ADDED: Required for theorem environments
+
+% --- Bibliography ---
+% Use BibTeX via \bibliography{...} (not biblatex/\printbibliography)
+\usepackage{cite}
+
+% --- Hyperlinks (Load last) ---
+\usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
+\usepackage[nameinlink,capitalise]{cleveref}
+
+% --- Theorem Environments Setup ---
+% \theoremstyle{definition} makes the body text upright (not italic).
+% If you remove this line, LaTeX defaults to italics for theorems.
+\theoremstyle{definition}
+
+% Defined environments:
+\newtheorem{thm}{Theorem}[section] % Numbered by section (e.g., Theorem 1.1)
+\newtheorem{lem}[thm]{Lemma}       % Shares counter with Theorem (e.g., Lemma 1.2)
+\newtheorem{rem}[thm]{Remark}      % Shares counter with Theorem
+\newtheorem{example}[thm]{Example}
+\newtheorem{prop}[thm]{Proposition}
+\newtheorem{defi}[thm]{Definition}
+\newtheorem{question}[thm]{Question}
+\newtheorem{hypothesis}[thm]{Hypothesis}
+
+% --- cleveref names (for \autoref / \cref-style references) ---
+\crefname{example}{example}{examples}
+\Crefname{example}{Example}{Examples}
+% --- Custom Commands ---
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\D}{\mathcal{D}}
+\newcommand{\Simplex}{\Delta^{d-1}}
+\newcommand{\noi}{\noindent}
+\newcommand{\oracle}{\text{oracle}}
+\newcommand{\agent}{\text{agent}}
+\newcommand{\ra}{\rightarrow}
+\newcommand{\bb}[1]{\mathbb{#1}}
+% \AA, \BB, ..., \ZZ -> \mathbb{A}, ..., \mathbb{Z}
+% NB: overrides kernel \AA (Å) and \SS (ß); neither is used in this project.
+\makeatletter
+\@for\@bbletter:=A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z\do{%
+  \expandafter\edef\csname\@bbletter\@bbletter\endcsname{%
+    \noexpand\mathbb{\@bbletter}}%
+}
+\makeatother
+%brackets
+\newcommand{\anbr}[1]{\left\langle #1 \right\rangle}
+\newcommand{\crbr}[1]{\left \{ #1 \right \} }
+\newcommand{\smbr}[1]{\left( #1 \right) }
+\newcommand{\sqbr}[1]{\left [ #1 \right ] }
+\renewcommand{\c}[1]{\mathcal{#1}}
+
+%commenting
+\newcommand{\milton}[1]{\textcolor{blue!55}{[milton: #1]}}
+
+\usepackage{listings}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{xcolor}
+
+% Setup for BNF Grammar
+\lstdefinelanguage{BNF}{
+  morekeywords={::=, |},
+  sensitive=true,
+  morestring=[b]",
+}
+
+\lstset{
+  language=BNF,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue}\bfseries,
+  stringstyle=\color{red},
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  showstringspaces=false
+}
+
+\lstdefinestyle{dslstyle}{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    stringstyle=\color{red},
+    commentstyle=\color{gray}\itshape,
+    morekeywords={if, then, else, pos, vel, ang, ang_vel, Left, Right},
+    mathescape=true,
+    frame=single,
+    xleftmargin=1em,
+}
+
+
+
+% Add this to your preamble
+\lstdefinelanguage{PDDL}{
+  morekeywords={define, domain, problem, :requirements, :types, :constants, :predicates, :action, :parameters, :precondition, :effect, and, not, =, forall, when, :domain, :init, :goal, :situation, :objects},
+  sensitive=false,
+  morecomment=[l]{;},
+  stringstyle=\color{red},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{purple}\bfseries,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray}
+}
+
+
+\title{Project write-up notes}
+\author{Research Plan \& Experimental Roadmap}
+\date{\today}
+% Note: We removed \title, \author, \date from here
+
+\begin{document}
+
+\maketitle
+
+\section{Framing the project}
+
+This project is best situated as \emph{lifted generalized-policy synthesis by
+grammar-guided MCTS} --- not as full AlphaZero, at least not yet. The search
+machinery is Monte Carlo Tree Search, but it is steered by a grammar over
+candidate policies rather than by a value/policy network learned from self-play
+over a fixed game; and the object of synthesis is a \emph{lifted} (relational,
+object-count-agnostic) generalized policy rather than a tabular or
+instance-specific one.
+
+\milton{``not full AlphaZero yet'' --- worth spelling out which AlphaZero
+ingredients are deliberately deferred (a learned value net? the self-play loop?
+policy iteration?), so the contrast is concrete.}
+
+\section{Generalized planning, briefly}
+
+Generalized planning concerns policies or plans that solve \emph{multiple}
+instances of a domain --- including the cases where the set of objects and the
+set of ground actions change from one instance to the next. This is exactly the
+regime a lifted policy is built for: a solution expressed over predicates and
+quantified variables, rather than over a frozen ground state space, transfers
+across instances with different object sets.
+
+Bonet and Geffner explicitly motivate generalized policies for relational
+domains where the object set varies. \milton{add the actual citation key once
+the reference is in the \texttt{.bib} --- the input named ``Bonet and Geffner''
+but not a specific paper, so no \texttt{\textbackslash cite\{\}} is inserted
+yet.}
+
+\end{document}

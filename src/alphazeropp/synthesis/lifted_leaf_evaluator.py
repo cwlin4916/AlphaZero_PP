@@ -49,6 +49,10 @@ class LiftedLeafEvaluator:
         self.progress_weight = progress_weight
         self.horizon = horizon
         self._cache: dict[str, dict] = {}
+        # Stage 3-A — keep the Policy object alongside its cached metrics so callers
+        # (the smoke / diagnostic-grid scripts) can attach a structural pathology
+        # report (see alphazeropp.synthesis.lifted_diagnostics) to each JSONL record.
+        self._programs: dict[str, Policy] = {}
 
     # -- rollout --
     def _rollout_one(self, env, program: Policy) -> dict:
@@ -141,6 +145,7 @@ class LiftedLeafEvaluator:
             "policy_pretty": key,
         }
         self._cache[key] = diag
+        self._programs[key] = program
         return score
 
     def metrics_for(self, program: Policy) -> dict:
@@ -167,3 +172,12 @@ class LiftedLeafEvaluator:
 
     def all_metrics(self) -> list[dict]:
         return [dict(v) for v in self._cache.values()]
+
+    def program_for(self, policy_pretty: str) -> Policy:
+        """The :class:`Policy` whose ``pretty()`` equals ``policy_pretty`` (must have been evaluated)."""
+        return self._programs[policy_pretty]
+
+    def all_metrics_with_programs(self) -> list[tuple[dict, Policy]]:
+        """``(metrics, program)`` pairs in discovery order — for callers that attach
+        per-policy diagnostics (Stage 3-A)."""
+        return [(dict(v), self._programs[k]) for k, v in self._cache.items()]

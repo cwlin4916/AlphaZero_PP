@@ -1,0 +1,31 @@
+{
+  "balls": 2,
+  "max_rules": 4,
+  "mcts_sims": 2048,
+  "n_episodes": 16,
+  "seed": 4,
+  "c_exploration": 1.5,
+  "n_unique": 16,
+  "best_score": 1.18,
+  "best_policy_pretty": "\u03c1_1: carrying(?v_0) \u2227 Goal[at_ball(?v_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_2: at_robot(?v_0) \u2227 handempty() \u2227 \u00acGoal[at_ball(?b_0, ?v_0)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_3: \u22a4 \u21d2 move(?r_0, ?r_1)",
+  "best_metrics": {
+    "score": 1.18,
+    "solved": true,
+    "progress": 1.0,
+    "steps": 7.0,
+    "noops": 0,
+    "num_rules": 3,
+    "num_literals": 5,
+    "classification": "solver"
+  },
+  "n_solving": 2,
+  "first_solver_episode": 8,
+  "first_solver_unique_index": 8,
+  "counts": {
+    "solver": 2,
+    "reasonable": 1,
+    "degenerate": 13
+  },
+  "elapsed_sec": 360.15,
+  "git_commit": "d9b867f"
+}

@@ -4,7 +4,11 @@ Stage 2 only ever drives ``LiftedDerivationGame`` with uniform-prior MCTS
 (``UniformPolicyValueNet`` ignores the observation), so this encoding only has
 to be **valid and deterministic** — a stable preorder serialisation of the
 partial AST into a fixed-length ``float32`` vector. A learned network is a
-Stage 3 concern. See ``docs/notes/stage4/02_plan.md`` §2.3.
+later concern. See ``docs/notes/stage4/02_plan.md``.
+
+Body-local variables are *implicit* in the encoded state literals (each literal
+node carries its predicate id and arity, so the variables it introduced are
+recoverable from the literal sequence) — there is no dedicated variable node.
 """
 
 from __future__ import annotations
@@ -23,18 +27,17 @@ N_FIELDS_PER_NODE = 7  # (node_kind, predicate_id, action_id, type_id, var_local
 # node-kind ids (small integers; 0 is padding)
 _KIND_RULE_HEADER = 20
 _KIND_PARTIAL_HEADER = 21
-_KIND_AUX_VAR = 22
 _KIND_STATE_LIT = 10
 _KIND_GOAL_LIT = 11
 _KIND_HOLE_BASE = 30  # + hole id
 
-_HOLE_ID = {None: 0, "policy": 1, "action_schema": 2, "aux_var": 3, "pre_lit": 4, "goal_lit": 5}
+_HOLE_ID = {None: 0, "policy": 1, "action_schema": 2, "pre_lit": 3, "goal_lit": 4}
 
 
 def encode_max_len(cfg: "LiftedGrammarConfig") -> int:
-    """Worst-case encoded length. One node per finished literal/var + one per
-    rule header + one trailing hole-marker node, all times ``N_FIELDS_PER_NODE``."""
-    nodes_per_rule = 1 + cfg.max_pre_literals + cfg.max_goal_literals + cfg.max_aux_vars
+    """Worst-case encoded length. One node per finished literal + one per rule
+    header + one trailing hole-marker node, all times ``N_FIELDS_PER_NODE``."""
+    nodes_per_rule = 1 + cfg.max_pre_literals + cfg.max_goal_literals
     n_nodes = cfg.max_rules * nodes_per_rule + 1
     return N_FIELDS_PER_NODE * n_nodes
 
@@ -46,7 +49,6 @@ def encode_state(
 ) -> np.ndarray:
     pred_id = {p.name: i + 1 for i, p in enumerate(sig.predicates)}
     act_id = {a.name: i + 1 for i, a in enumerate(sig.action_schemas)}
-    type_id = {t: i + 1 for i, t in enumerate(sig.types)}
 
     def lit_node(lit) -> tuple:
         kind = _KIND_GOAL_LIT if lit.source.value == "goal" else _KIND_STATE_LIT
@@ -69,8 +71,6 @@ def encode_state(
             items.append(lit_node(lit))
         for lit in p.goal_lits:
             items.append(lit_node(lit))
-        for v in p.aux_vars:
-            items.append((_KIND_AUX_VAR, 0, 0, type_id.get(v.type_name, 0), 0, 0, 0))
     items.append((_KIND_HOLE_BASE + _HOLE_ID.get(state.current_hole, 0), 0, 0, 0, 0, 0, 0))
 
     flat: list[float] = []

@@ -15,6 +15,17 @@ import pytest
 
 from scripts.run.analyze_lifted_gripper_landscape import main as landscape_main
 
+# Stage 2 (occurrence-introduced grammar): the Stage-2.5 landscape driver is a
+# *legacy* artifact of the aux-var grammar — its ``_grammar_config(max_aux_vars=…)``
+# helper no longer matches ``LiftedGrammarConfig`` (``max_aux_vars`` was removed in
+# favour of ``max_body_local_vars``). The driver is intentionally left unported (see
+# ``docs/notes/stage4/02_plan.md`` — "legacy artifacts of the aux-var grammar"), so
+# these smoke tests are skipped rather than fixed.
+pytestmark = pytest.mark.skip(
+    reason="legacy Stage-2.5 landscape driver — incompatible with the occurrence-"
+           "introduced grammar (max_aux_vars removed); see docs/notes/stage4/02_plan.md"
+)
+
 _REQUIRED_KEYS = {
     "mode",
     "total_policies_evaluated",

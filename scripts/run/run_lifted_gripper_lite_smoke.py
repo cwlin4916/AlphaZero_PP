@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -33,11 +34,27 @@ from alphazeropp.core.mcts import MCTS
 from alphazeropp.instances.gripper_lite.env import GripperLiteEnv
 from alphazeropp.synthesis.derivation_game import UniformPolicyValueNet
 from alphazeropp.synthesis.lifted_derivation import LiftedDerivationGame
+from alphazeropp.synthesis.lifted_diagnostics import analyze_policy_pathologies
 from alphazeropp.synthesis.lifted_grammar import (
-    LiftedGrammarConfig,
     gripper_lite_signature,
+    legacy_grammar_config,
+    strict_grammar_config,
 )
 from alphazeropp.synthesis.lifted_leaf_evaluator import LiftedLeafEvaluator
+
+_GRAMMAR_CONFIGS = {"strict": strict_grammar_config, "legacy": legacy_grammar_config}
+
+
+def git_commit_short() -> str:
+    """Short HEAD hash, or ``""`` outside a git checkout (so JSONL stays valid)."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(Path(__file__).resolve().parents[2]), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+        return out.stdout.strip() if out.returncode == 0 else ""
+    except Exception:
+        return ""
 
 
 def _parse_args(argv=None):
@@ -48,6 +65,9 @@ def _parse_args(argv=None):
     ap.add_argument("--mcts-sims", type=int, default=128)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out-jsonl", type=str, required=True)
+    ap.add_argument("--grammar", choices=sorted(_GRAMMAR_CONFIGS), default="strict",
+                    help="grammar-safety preset: 'strict' (Stage-3-A default — goal-predicate "
+                         "relevance + goal-var connectedness on) or 'legacy' (pre-Stage-3-A, both off)")
     # Stage-2 extras (not in the original spec; harmless defaults):
     ap.add_argument("--n-episodes", type=int, default=64,
                     help="number of independent MCTS search episodes to run")
@@ -77,8 +97,9 @@ def main(argv=None):
     args = _parse_args(argv)
     np.random.seed(args.seed)
 
-    cfg = LiftedGrammarConfig(max_rules=args.max_rules)  # other knobs at their Stage-2 defaults
+    cfg = _GRAMMAR_CONFIGS[args.grammar](max_rules=args.max_rules)  # other knobs at Stage-2 defaults
     sig = gripper_lite_signature()
+    git_commit = git_commit_short()
     train_envs = [GripperLiteEnv(n_balls=args.n_balls_train, seed=args.seed)]
     eval_in_envs = train_envs  # single-instance run: eval-in == train (each rollout resets)
     eval_out_envs = [GripperLiteEnv(n_balls=args.n_balls_eval, seed=args.seed)]
@@ -98,9 +119,11 @@ def main(argv=None):
     wall = time.time() - t0
 
     def _record_from(m):
-        return {
+        rec = {
             "seed": args.seed,
             "mcts_sims": args.mcts_sims,
+            "grammar_config_name": args.grammar,
+            "git_commit": git_commit,
             "n_balls_train": args.n_balls_train,
             "n_balls_eval": args.n_balls_eval,
             "max_rules": args.max_rules,
@@ -119,6 +142,12 @@ def main(argv=None):
             "wall_time": wall,
             "policy_pretty": m["policy_pretty"],
         }
+        # Stage 3-A — per-policy structural pathology report (lifted_diagnostics).
+        rec.update(analyze_policy_pathologies(
+            evaluator.program_for(m["policy_pretty"]),
+            goal_predicate_names=sig.goal_predicate_names,
+        ))
+        return rec
 
     # Best-so-far progression over every evaluated policy, in discovery order.
     best_score = float("-inf")
@@ -144,7 +173,7 @@ def main(argv=None):
     n_gen = sum(1 for m in evaluator.all_metrics()
                 if m["train_solve_rate"] >= 1.0 and m["eval_out_solve_rate"] >= 1.0)
     print(
-        f"[lifted-gripper-smoke] seed={args.seed} sims={args.mcts_sims} "
+        f"[lifted-gripper-smoke] grammar={args.grammar} seed={args.seed} sims={args.mcts_sims} "
         f"episodes={args.n_episodes} unique_policies={n_unique} "
         f"best_score={best_score:.4f} solving_train={n_solving} generalising={n_gen} "
         f"jsonl_lines={n_lines} -> {out_path}"

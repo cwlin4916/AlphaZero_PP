@@ -1,0 +1,31 @@
+{
+  "balls": 2,
+  "max_rules": 4,
+  "mcts_sims": 512,
+  "n_episodes": 32,
+  "seed": 4,
+  "c_exploration": 1.5,
+  "n_unique": 32,
+  "best_score": -0.05,
+  "best_policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 carrying(?v_0) \u2227 Goal[at_ball(?v_0, ?r_0)] \u21d2 move(?r_0, ?r_1)\n\u03c1_2: at_ball(?v_0, ?v_1) \u2227 Goal[at_ball(?v_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_3: at_ball(?v_0, ?v_1) \u2227 at_robot(?r_1) \u2227 carrying(?b_0) \u2227 Goal[at_ball(?b_0, ?v_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_4: at_ball(?v_0, ?v_1) \u2227 at_robot(?v_1) \u2227 carrying(?b_0) \u2227 \u00acGoal[at_ball(?b_0, ?v_1)] \u21d2 pick(?b_0, ?r_1)",
+  "best_metrics": {
+    "score": -0.05,
+    "solved": false,
+    "progress": 0.0,
+    "steps": 0.0,
+    "noops": 1,
+    "num_rules": 4,
+    "num_literals": 13,
+    "classification": "degenerate"
+  },
+  "n_solving": 0,
+  "first_solver_episode": null,
+  "first_solver_unique_index": null,
+  "counts": {
+    "solver": 0,
+    "reasonable": 0,
+    "degenerate": 32
+  },
+  "elapsed_sec": 141.12,
+  "git_commit": "d9b867f"
+}

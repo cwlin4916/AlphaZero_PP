@@ -1,0 +1,242 @@
+{
+  "meta": {
+    "max_rules": 1,
+    "max_pre_literals": 2,
+    "max_goal_literals": 1,
+    "max_aux_vars": 1,
+    "train_balls": [
+      1,
+      2
+    ],
+    "eval_balls": [
+      3,
+      4
+    ],
+    "constraints": [
+      "none",
+      "goal_predicate",
+      "connected",
+      "both"
+    ],
+    "max_policies": 200000,
+    "seed": 0,
+    "hand_policy_pretty": "\u03c1_1: carrying(?b) \u2227 at_robot(?r) \u2227 Goal[at_ball(?b, ?r)] \u21d2 drop(?b, ?r)\n\u03c1_2: carrying(?b) \u2227 at_robot(?from) \u2227 Goal[at_ball(?b, ?to)] \u21d2 move(?from, ?to)\n\u03c1_3: at_ball(?b, ?r) \u2227 at_robot(?r) \u2227 handempty() \u2227 \u00acGoal[at_ball(?b, ?r)] \u21d2 pick(?b, ?r)\n\u03c1_4: at_robot(?from) \u2227 at_ball(?b, ?to) \u2227 handempty() \u2227 \u00acGoal[at_ball(?b, ?to)] \u21d2 move(?from, ?to)",
+    "degenerate_drop_policy_pretty": "\u03c1_1: \u22a4 \u21d2 drop(?b_0, ?r_1)"
+  },
+  "none": {
+    "mode": "exhaustive",
+    "total_policies_evaluated": 1166,
+    "unique_policies_evaluated": 1166,
+    "solver_count_by_B": {
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 0
+    },
+    "b1_solver_count": 0,
+    "b1_to_b2_generalizing_count": 0,
+    "b2_solver_count": 0,
+    "hand_policy_score": null,
+    "hand_policy_rank": null,
+    "degenerate_drop_policy_score": -0.1,
+    "degenerate_drop_policy_rank": 678,
+    "vacuous_goal_policy_count": 736,
+    "disconnected_goal_policy_count": 116,
+    "best_policy_by_variant": {
+      "current": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u2227 Goal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": -0.1
+      },
+      "no_step_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 handempty() \u2227 \u00acGoal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "no_noop_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u2227 Goal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "progress_only": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u2227 Goal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "lexicographic": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u2227 Goal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": [
+          0.0,
+          0.0,
+          -0.0,
+          -2.0
+        ]
+      }
+    },
+    "size_strata": {
+      "1r_0lit": 3,
+      "1r_1lit": 57,
+      "1r_2lit": 332,
+      "1r_3lit": 774
+    },
+    "wall_seconds": 1.521
+  },
+  "goal_predicate": {
+    "mode": "exhaustive",
+    "total_policies_evaluated": 430,
+    "unique_policies_evaluated": 430,
+    "solver_count_by_B": {
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 0
+    },
+    "b1_solver_count": 0,
+    "b1_to_b2_generalizing_count": 0,
+    "b2_solver_count": 0,
+    "hand_policy_score": null,
+    "hand_policy_rank": null,
+    "degenerate_drop_policy_score": -0.1,
+    "degenerate_drop_policy_rank": 225,
+    "vacuous_goal_policy_count": 0,
+    "disconnected_goal_policy_count": 58,
+    "best_policy_by_variant": {
+      "current": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u21d2 move(?r_0, ?r_1)",
+        "value": -0.1
+      },
+      "no_step_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 handempty() \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "no_noop_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "progress_only": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "lexicographic": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u21d2 move(?r_0, ?r_1)",
+        "value": [
+          0.0,
+          0.0,
+          -0.0,
+          -2.0
+        ]
+      }
+    },
+    "size_strata": {
+      "1r_0lit": 3,
+      "1r_1lit": 33,
+      "1r_2lit": 148,
+      "1r_3lit": 246
+    },
+    "wall_seconds": 0.582
+  },
+  "connected": {
+    "mode": "exhaustive",
+    "total_policies_evaluated": 1050,
+    "unique_policies_evaluated": 1050,
+    "solver_count_by_B": {
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 0
+    },
+    "b1_solver_count": 0,
+    "b1_to_b2_generalizing_count": 0,
+    "b2_solver_count": 0,
+    "hand_policy_score": null,
+    "hand_policy_rank": null,
+    "degenerate_drop_policy_score": -0.1,
+    "degenerate_drop_policy_rank": 617,
+    "vacuous_goal_policy_count": 678,
+    "disconnected_goal_policy_count": 0,
+    "best_policy_by_variant": {
+      "current": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u2227 Goal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": -0.1
+      },
+      "no_step_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 handempty() \u2227 \u00acGoal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "no_noop_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u2227 Goal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "progress_only": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u2227 Goal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "lexicographic": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u2227 Goal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": [
+          0.0,
+          0.0,
+          -0.0,
+          -2.0
+        ]
+      }
+    },
+    "size_strata": {
+      "1r_0lit": 3,
+      "1r_1lit": 45,
+      "1r_2lit": 288,
+      "1r_3lit": 714
+    },
+    "wall_seconds": 1.56
+  },
+  "both": {
+    "mode": "exhaustive",
+    "total_policies_evaluated": 372,
+    "unique_policies_evaluated": 372,
+    "solver_count_by_B": {
+      "1": 0,
+      "2": 0,
+      "3": 0,
+      "4": 0
+    },
+    "b1_solver_count": 0,
+    "b1_to_b2_generalizing_count": 0,
+    "b2_solver_count": 0,
+    "hand_policy_score": null,
+    "hand_policy_rank": null,
+    "degenerate_drop_policy_score": -0.1,
+    "degenerate_drop_policy_rank": 200,
+    "vacuous_goal_policy_count": 0,
+    "disconnected_goal_policy_count": 0,
+    "best_policy_by_variant": {
+      "current": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u21d2 move(?r_0, ?r_1)",
+        "value": -0.1
+      },
+      "no_step_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 handempty() \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "no_noop_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "progress_only": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u21d2 move(?r_0, ?r_1)",
+        "value": 0.0
+      },
+      "lexicographic": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_0) \u2227 at_robot(?r_1) \u21d2 move(?r_0, ?r_1)",
+        "value": [
+          0.0,
+          0.0,
+          -0.0,
+          -2.0
+        ]
+      }
+    },
+    "size_strata": {
+      "1r_0lit": 3,
+      "1r_1lit": 27,
+      "1r_2lit": 126,
+      "1r_3lit": 216
+    },
+    "wall_seconds": 0.517
+  }
+}

@@ -1,328 +1,208 @@
-# Stage 2 — Plug the lifted DSL into the grammar-MCTS path (refined plan)
+# Stage 2 — minimal uniform-MCTS over the redesigned (occurrence-introduced-variable) lifted grammar
 
-> Refined from the draft prompt against the codebase. Upstream: [01.md](01.md). Results companion (written after the runs): [02.md](02.md).
+> Companion to be written **after** code runs: [02.md](02.md).
+> Orientation doc: [01_draft_lifted_policy_az.md](01_draft_lifted_policy_az.md) — §8 specifies the grammar redesign this plan lands; §9 the synthesis game / leaf evaluator.
+> Legacy Stage-2 / 2.5 / 3 record (the *aux-var* grammar): [legacy/02.md](legacy/02.md) / [legacy/02_plan.md](legacy/02_plan.md) / [legacy/02_plan2.md](legacy/02_plan2.md) / [legacy/03.md](legacy/03.md) / [legacy/03_plan.md](legacy/03_plan.md).
 
 ## Context
 
-Stage 1 delivered the **semantic core** — a lifted decision-list DSL ([src/alphazeropp/synthesis/lifted_dsl.py](../../../src/alphazeropp/synthesis/lifted_dsl.py)), an online-unification interpreter ([src/alphazeropp/synthesis/lifted_interpreter.py](../../../src/alphazeropp/synthesis/lifted_interpreter.py)), and a relational Gripper-lite env ([src/alphazeropp/instances/gripper_lite/](../../../src/alphazeropp/instances/gripper_lite/)) — proven by a hand-written 4-rule policy that solves B = 1, 2, 3. None of these talk to MCTS.
+The orientation doc [01_draft_lifted_policy_az.md](01_draft_lifted_policy_az.md) §8 proposes replacing the grammar's **standalone `Aux` phase** — the search picks a body-local variable (`current_hole == "aux_var"`, `add_aux:{type}` / `SKIP_AUX` productions, `max_aux_vars`, `?aux_i` names, `PartialRule.aux_vars`, the `_KIND_AUX_VAR` encoding node) *before any literal justified it* — with **occurrence-introduced variables**: variables enter scope only where they first occur. §8.5 records that the live code on branch `feature/grammar-redesign` still ships the `aux_var` hole and that the cutover is "a future stage". **This is that stage.**
 
-Stage 2 wires the lifted core into the **search** loop. The load-bearing question:
+The decoupling of variable-introduction from literal-occurrence is the root cause of the disconnected-variable pathology Stage 2/2.5 documented ([legacy/02.md](legacy/02.md) §H4 / Table 2): uniform-prior MCTS placed `?aux_0` in `Goal[at_ball(?aux_0, ?r_1)]` with `?aux_0` occurring nowhere else, getting the unintended existential reading. Stage 2.5's `require_goal_var_connected` flag (now a default) patches the symptom; the redesign removes the cause. It does **not** remove body-local variables — hand-policy ρ₂ (`carrying(?b) ∧ at_robot(?from) ∧ Goal[at_ball(?b,?to)] ⇒ move(?from,?to)`) needs `?b`, which is not a `move` argument; under the redesign `?b` is born inside the state literal `carrying(?b)` that uses it.
 
-> Can the existing grammar-MCTS infrastructure generate complete lifted policies, evaluate them through the Stage 1 interpreter, and discover at least a tiny solving policy on Gripper-lite?
+Alongside the grammar cutover this stage wires a **minimal** uniform-prior MCTS run on Gripper-lite. The single research question:
 
-This is a systems smoke test. No baselines, no PG3 comparison, no learned network. Acceptable result: uniform-MCTS finds nonzero-reward policies, and at least one seed solves the training instance (B = 2). Generalization to B = 3 would be a bonus.
+> Can uniform MCTS over the redesigned lifted derivation grammar find *reasonable* Gripper-lite policies for B=1 and B=2?
 
-## §0 Design decisions resolved up front
+**Out of scope** (explicitly): held-out generalization (no B=3 evaluation, no `J_out`); Stage-2.5 landscape enumeration; a learned policy/value net; Doors MCTS; any PG3 comparison; any claim of "learned AlphaZero" success. The MCTS prior is `UniformPolicyValueNet` — a policy it turns up is a *search artifact*. Same-`B` train *and* eval only.
 
-Three choices were locked in via clarification before writing this plan:
+The previous Stage-2/2.5/3 drivers — `scripts/run/make_lifted_gripper_canonical.py`, `scripts/run/make_lifted_gripper_landscape.py`, `scripts/run/run_lifted_gripper_diagnostic_grid.py` — and their committed artifacts under `docs/notes/stage4/data/` (`runA_*`, `runB_*`, `landscape_*`, `diagnostic_grid/`) are **legacy artifacts of the aux-var grammar**; they are left in place untouched and are *not* re-pinned to the new grammar. New runs land under `docs/notes/stage4/data/minimal_mcts/`.
 
-- **Integration strategy:** new `LiftedDerivationGame` (mirrors the `Game` protocol). `DerivationGame.__init__` calls `compute_max_productions(...)` with a grounded-grammar-specific signature, and `_encode_obs` hardcodes `NODE_TYPE_IDS` for `Flip/IsZero/Not/And/Ite/Default`. Refactoring the existing class to be grammar-agnostic has a large blast radius on the grounded test suite and is deferred.
-- **α-canonicalization:** schema-position variable names. Action variables are named by schema parameter position (`drop(?b_0, ?r_1)`, `move(?r_0, ?r_1)`). Aux variable, if added, is `?aux_0`. Two rules with the same shape pretty-print identically with no separate canonicalization pass.
-- **`num_noops`:** count of `interpret()` returning `None`. Each such step terminates the rollout. Simple, matches "policy stalled."
+## Refinement table — draft brief item → refinement → reason
 
-## §1 Refinement table — draft → refined plan
-
-| Draft item | Refined | Reason |
+| Brief item | Refinement | Reason |
 |---|---|---|
-| "Reuse the existing DerivationGame class if it only needs a derivation state with legal_productions, apply, is_terminal, to_program" | Implement **LiftedDerivationGame** in `lifted_derivation.py` that mirrors the `Game` protocol (step/reset/get_action_mask + stash/unstash overrides). | [derivation_game.py:121–151](../../../src/alphazeropp/synthesis/derivation_game.py#L121) calls `compute_max_productions(budget, n_sites, mode, allow_and, allow_not, n_actions)` and [_encode_obs:273–286](../../../src/alphazeropp/synthesis/derivation_game.py#L273) hardcodes grounded NODE_TYPE_IDS. The class is not actually grammar-agnostic at the `__init__` boundary. Falls back to the explicit Fallback path. |
-| Rule structure `(PAR, PRE, GOAL, ACT)` | Rule structure `(vars, body, action)` where `body: tuple[Literal, ...]` and each `Literal` carries `source: STATE\|GOAL` and `negated: bool`. | Stage 1's [lifted_dsl.Rule:123–184](../../../src/alphazeropp/synthesis/lifted_dsl.py#L123) has one body list, not a (PRE,GOAL) split. Source is encoded structurally on each literal. Grammar must emit this exact shape, otherwise [interpret()](../../../src/alphazeropp/synthesis/lifted_interpreter.py#L161) will not run the program. |
-| Grammar parameters: `max_rules=4, max_pre_literals=3, max_goal_literals=1, max_aux_vars=1, allow_goal_negation=True, allow_state_negation=False` | Same parameters. Stored on a `LiftedGrammarConfig` dataclass passed to `LiftedDerivationState.initial(...)`. | Direct lift; matches the Stage 1 hand-policy: ρ₃ has 3 state literals + 1 negated goal literal; ρ₂/ρ₄ have one aux var. |
-| "Canonical literal lists" | Enforced at production time: a `PreLiteralHole` only emits literals `>` the last accepted literal under a fixed lex key `(source.value, predicate_name, args)`. Same for `GoalLiteralHole`. | Eliminates `And`-style commutativity classes at the source — analogous to the [grounded-grammar canonicalization in _condition_productions](../../../src/alphazeropp/synthesis/derivation.py#L336). No post-hoc dedup needed. |
-| "Canonicalize alpha-equivalent variable naming" | Schema-position naming. Action vars: `?{type_prefix}_{position_index}` where type_prefix is one char (`b` for ball, `r` for room). Aux var: `?aux_0`. No renaming pass; names are fixed at action-schema-choice time. | Locked in §0. Two rules with the same shape pretty-print identically by construction. |
-| "Enforce safe negation" | Negated **goal** literals must use only variables that already appear in a positive (state) literal or in the action's args. Enforced at the grammar level: `GoalLiteralHole` only offers negation when the candidate goal literal's vars are already covered. State literals can't be negated (config flag). | Matches Stage 1 [Rule.__post_init__:164–180](../../../src/alphazeropp/synthesis/lifted_dsl.py#L164); grammar-level pre-filtering avoids generating programs the DSL constructor will reject. |
-| `compute_max_productions` upper bound | Compute analytically: for each hole kind, count the max number of legal productions across all reachable scopes. Bound is dominated by the literal-choice hole: `O(\|preds\| × max_var_combos)`. With predicates {at_robot, at_ball, carrying, handempty}, action schemas {move, pick, drop}, and ≤ 4 vars per rule scope, the bound is < 100 per hole. | Required by [`DerivationGame.action_space = spaces.Discrete(self._max_productions)`](../../../src/alphazeropp/synthesis/derivation_game.py#L147) and by the lifted analogue. Keep the calculation in a single helper with a unit test. |
-| Encoding "fixed-width for existing network interface" | Stage 2: deterministic preorder encoding into `np.ndarray(shape=(max_len,), dtype=float32)` with **7 fields per node** and `max_len = 7 * (max_rules * (1 + max_pre_literals + max_goal_literals + max_aux_vars) + 1)` (the `+1` is the policy-stop node). For Stage 2 only uniform MCTS reads this; network adequacy is a Stage 3 concern. | "For a uniform-MCTS smoke test, the encoding only needs to be valid and deterministic." A pinned `max_len` keeps `observation_space` shape stable across runs; avoids premature design and unblocks the smoke test. |
-| LeafEvaluator: `solve_bonus + 0.25*progress − 0.01*steps − 0.05*noops` | Same. Concrete definitions: `progress = \|state["at_ball"] ∩ goal["at_ball"]\| / \|goal["at_ball"]\|`. `steps = env steps taken`. `num_noops = number of times interpret() returned None during rollout` (0 if rollout completes by hitting horizon or solving). Cap rollout at `env.horizon`. | RelState is a `dict[str, set[tuple]]` per [env.py:106–113](../../../src/alphazeropp/instances/gripper_lite/env.py#L106). Set intersection is the natural progress metric. |
-| Cache by `program.pretty()` | Cache by `Policy.pretty()`. Use a plain `dict[str, dict]` keyed on the pretty string; cached value stores the full per-instance metrics dict (used both for `score` and for the JSONL log fields). | Matches [LeafEvaluator.__call__:98–115](../../../src/alphazeropp/synthesis/leaf_evaluator.py#L98) caching shape; richer per-policy diagnostics for the log. |
-| "Run uniform MCTS or existing AlphaZero with an untrained network" | Use the existing [`UniformPolicyValueNet(action_size)`](../../../src/alphazeropp/synthesis/derivation_game.py#L293) and [`MCTS`](../../../src/alphazeropp/core/mcts.py#L39) classes unchanged. | No new infrastructure. Both already accept any `Game` and any `PolicyValueNet`. |
-| Smoke runs | Run A: `--n-balls-train 1 --n-balls-eval 2`, sims ∈ {128, 512}, seeds ∈ {0, 1, 2}, `--max-rules 3`. Run B: `--n-balls-train 2 --n-balls-eval 3`, sims ∈ {512, 2048}, seeds ∈ {0, 1, 2}, `--max-rules 4`. | Lifted from the goal block. The script will accept these args; the docs companion will run the cross-product. |
-| "At least one seed solves training" | **Required** for B=2 Run B; **desired but not required** for the B=3 eval-out. Required for every run: ≥1 nonzero-reward policy. | The goal explicitly weakens generalization to "desired but not required." |
-| Tests (7 from draft) | Renamed to match Stage 1 style (`test_lifted_grammar_*`, `test_lifted_derivation_*`). Added one extra test: explicit α-equivalence check that two rule constructions with reordered literal additions produce the same `.pretty()`. | Mirrors the additions Stage 1 made (see [01.md §6](01.md#§6-refinement-deltas-vs-the-plan)) — adding tests during planning is expected. |
-| Domain signature representation (draft implied raw dicts) | Reuse [`PredicateSchema` / `ActionSchema`](../../../src/alphazeropp/synthesis/lifted_dsl.py#L29) from `lifted_dsl.py`; `gripper_lite_signature()` is assembled from the existing module constants [`PREDICATE_SCHEMAS` / `ACTION_SCHEMAS`](../../../src/alphazeropp/instances/gripper_lite/env.py#L29). | The canonical typed-schema representation already exists and is already instantiated for Gripper-lite — re-inventing it as `dict[str, tuple]` would diverge from the rest of the lifted stack. |
+| "No `aux_var` hole / no standalone `Aux` production / no `max_aux_vars` as the main way variables enter" | Holes become `policy → action_schema → pre_lit → goal_lit → (FINISH_RULE → policy) → STOP_POLICY → ⊥`. `LiftedGrammarConfig.max_aux_vars` is **removed**; add `max_body_local_vars: int = 2` (a generous cap; the Gripper hand policy needs ≤ 1). The `action_schema` production now leaves the hole at `pre_lit` (was `aux_var`). | Matches 01_draft §8.2 / §8.4. The cap keeps `compute_max_productions` closed-form and the encoding fixed-width. |
+| "Action variables introduced when the schema is chosen, named by schema position" | Already so — `action_vars_for_schema(schema)` → `?{type_prefix}_{i}` (`move(?r_0,?r_1)`, `pick(?b_0,?r_1)`, `drop(?b_0,?r_1)`). Unchanged. | Existing behaviour in `lifted_grammar.py` / `lifted_derivation.py`. |
+| "State literals may introduce fresh body-local vars at the literal where first used; a fresh var only because the selected literal uses it" | `literal_candidates(..., kind="pre")` gains a *fresh-var path*: for each predicate `p(t_1,…,t_n)`, each argument position is filled by an existing in-scope var of the right type **or** a freshly-introduced typed body-local var. Fresh vars are named `?v_0, ?v_1, …` by introduction order in the rule, introduced left-to-right within a literal — and since `pre_lit` only offers literals strictly greater than the last accepted one under the lex key `(source, predicate, args, negated)`, each rule body's literal order is fixed, so the naming is deterministic. No fresh-var option once the rule already has `max_body_local_vars` body-local vars; still capped by `max_pre_literals`. | This is the §8.2 rule (2). It is exactly what ρ₂'s `carrying(?b)` and ρ₄'s `at_ball(?b, ?r_1)` need. |
+| "Goal literals may not introduce fresh vars; every goal-literal var must already occur in an action arg or a positive state literal; negated goal lits must satisfy safe negation; goal lits restricted to domain-goal predicates" | `literal_candidates(..., kind="goal")`: predicates restricted to `sig.goal_predicate_names` when `goal_predicate_relevance` (Gripper: `("at_ball",)`); **all arguments must be variables already in scope** — no fresh-var path; a negated `Goal[ℓ]` offered only when every variable in `ℓ` is positively covered (action args ∪ positive state-literal vars). | §8.2 rules (3)/(4). Consequence: `rule_has_disconnected_goal_var(r) == False` for every grammar-produced `r` *by construction* — `require_goal_var_connected` becomes vacuous-by-construction (kept as a config field, documented as a no-op, defaults `True`). |
+| "State negation remains disabled unless already implemented/tested" | `allow_state_negation = False` (unchanged); `allow_goal_negation = True` (unchanged). | No state negation exists; out of scope. |
+| "Preserve canonical literal ordering and typed schema checking" | `_lit_key` ordering kept; `Atom`/`LiftedAction` type checks via `Rule.__post_init__` kept. The lex key over a fresh-var literal uses the fresh var's (deterministic) name, so canonicalisation is preserved. | Existing invariants in `lifted_grammar.py`. |
+| "The grammar must still express all four Stage-1 hand-policy rules" | ρ₁ (`carrying(?b_0)∧at_robot(?r_1)∧Goal[at_ball(?b_0,?r_1)] ⇒ drop(?b_0,?r_1)`) — all vars are `drop` args, no fresh var. ρ₃ (similar, `pick` args). ρ₂ (`carrying(?v_0)∧at_robot(?r_0)∧Goal[at_ball(?v_0,?r_1)] ⇒ move(?r_0,?r_1)`) — `?v_0:ball` is a body-local var born in `carrying`. ρ₄ (`at_robot(?r_0)∧at_ball(?v_0,?r_1)∧handempty()∧¬Goal[at_ball(?v_0,?r_1)] ⇒ move(?r_0,?r_1)`) — `?v_0:ball` born in `at_ball`, positively covered ⇒ safe negation OK. All four reachable. | Required; tested (§Tests). |
+| "Refactor encoding — remove aux-node encoding; encode variables by first-use order; deterministic obs shape" | `lifted_encoding.py`: remove `_KIND_AUX_VAR`; remove `"aux_var"` from `_HOLE_ID` (renumber); drop the per-aux-var node loop — body-local vars are implicit in the encoded state literals (the literal node already carries arity + predicate). `encode_max_len`: `nodes_per_rule = 1 + cfg.max_pre_literals + cfg.max_goal_literals`. | Uniform-prior MCTS ignores the obs anyway (`UniformPolicyValueNet`); the encoding only needs to be valid + deterministic. Observation length shrinks — fine. |
+| "Refactor `compute_max_productions` — sound upper bound under the new literal arg choices; randomized tests" | Drop the `1 + len(types)` aux term. For each action schema take the maximal scope = `action_vars_for_schema(s)` + `max_body_local_vars` fresh vars **per type** (over-approx), enumerate `pre` candidates (with the fresh-var path) and `goal` candidates (no fresh-var path, every var assumed safe so negation always allowed), `max(...)` + 1 for `STOP_PRE` / `FINISH_RULE`; the fixed holes contribute their small constants. | A reachable state has a real `last_lit` (only shrinks the set) and ≤ `max_body_local_vars` body-local vars (subset of the over-approx scope), so this over-estimates. Tested over many random derivations and across the `goal_predicate_relevance × require_goal_var_connected` combos. |
+| "Leaf evaluator — keep `score = solve_rate + 0.25·progress − 0.01·steps − 0.05·noops`; Stage 2 trains/evaluates on the same B; log solved/progress/steps/noops/policy_pretty" | `LiftedLeafEvaluator` score formula untouched. Stage-2 instantiation: `train = eval_in = eval_out = [GripperLiteEnv(n_balls=B)]` (one frozen instance; `eval_out` aliased to avoid an empty list). Cached metrics already carry `train_solve_rate` (⇒ `solved`), `avg_progress`, `avg_steps`, `num_noops`, `policy_pretty`. | No evaluator code change. The run-script's solver/reasonable/degenerate classification (below) is done by a separate cheap classification rollout in the script (`interpret(...)` on a fresh env, ≤ horizon steps) — it needs the per-rollout *schema multiset*, which the evaluator doesn't track and which we don't add to it (keeps the score path clean). |
+| "MCTS script `run_lifted_gripper_mcts_minimal.py` — `--balls{1,2} --max-rules --mcts-sims --seed --out-jsonl --out-summary --log-all-terminals`; B=1 default `max_rules=3`, B=2 default `max_rules=4`; `UniformPolicyValueNet` only; existing MCTS core unchanged; log every distinct terminal policy if flagged; always log best-so-far" | Add `--n-episodes INT` (independent MCTS plays; default 64) and optional `--c-exploration FLOAT` (default 1.5, matching the Stage-2 smoke). Uses `strict_grammar_config(max_rules=…)` + `gripper_lite_signature()` + `LiftedDerivationGame` + `UniformPolicyValueNet(game._max_productions)` + `MCTS(game, net, n_simulations=…, c_exploration=…)`, `random.seed(seed)` / `np.random.seed(seed)`. | An MCTS *episode* yields one terminal policy; you need several plays to cover the space. The Stage-2 smoke (`run_lifted_gripper_lite_smoke.py`) already used `--n-episodes 64` + `c_exploration 1.5`. `MCTS.perform_simulations` returns visit-count probs; sample a move, `game.step_wrapper`, repeat to terminal — the core is reused unchanged. |
+| "Canonical driver `make_lifted_gripper_mcts_minimal.py` — B=1: sims 128/512/2048 seeds 0..4 max_rules=3; B=2: sims 512/2048/8192 seeds 0..4 max_rules=4; write under `docs/notes/stage4/data/minimal_mcts/`; `--skip-slow` may omit 8192 but keep the command documented" | Per cell, raw `all.jsonl` → `results/lifted_gripper_lite/minimal_mcts/<cell>/all.jsonl` (gitignored). Committed under `docs/notes/stage4/data/minimal_mcts/`: per-cell `<cell>_best.jsonl` + `<cell>_summary.json`, a rolled-up `minimal_mcts.csv` (one row per cell), and a top-level `summary.json`. `n_episodes` modest for cheap cells (64) and smaller for `sims=8192` (8). `--skip-slow` omits the `sims=8192` B=2 cell; the full command is documented in the driver docstring and in [02.md](02.md) §4. | `results/` is gitignored (`.gitignore` line 64); committed data must be small. Mirrors the layout `make_lifted_gripper_canonical.py` used. |
+| (implicit) "a figure for 02.md" | Optional new `scripts/plotting/plot_lifted_gripper_mcts_minimal.py` (or extend `scripts/plotting/plot_lifted_gripper_mcts.py`): best-score and solver-rate vs. sims, one panel per `B`. **Tables are the primary artifact**; the figure is nice-to-have. | The brief asks for results tables; a small curve helps but the brief explicitly forbids landscape / score-variant plots. |
+| Tests | NEW `tests/test_lifted_grammar_occurrence_vars.py`, `tests/test_lifted_gripper_mcts_minimal.py`. UPDATE `tests/test_lifted_grammar.py` (rewrite ~8 aux-referencing tests/helpers), `tests/test_lifted_derivation_game.py` (drop aux refs; keep action-mask + clone/stash + uniform-MCTS smoke; add a B=2 smoke), `tests/test_lifted_leaf_evaluator.py` (same-`B` setup; keep metric-keys + aggregate-shape; hand policy B=1 ⇒ `solve_rate=1.0, avg_steps=3.0, num_noops=0`). KEEP `tests/test_lifted_diagnostics.py` (the analyzer must still flag arbitrary hand-built bad policies — including a disconnected non-action var; optionally rename the `?aux_0` fixture token to `?v_0`). RUN `tests/test_run_lifted_gripper_diagnostic_grid.py`; minimal fix or `xfail` (with a pointer to this plan) if it can't be salvaged cheaply. | Acceptance criteria. The diagnostic-grid driver runs over `strict_grammar_config` — it exercises the new grammar; its pathology-count assertions (`has_vacuous_goal_predicate` / `has_goal_only_variable` both `False` under strict) should still hold. |
+| "02_plan.md concise executable plan; 02.md reports grammar redesign summary, tests, B=1 results, B=2 results, best-policy examples, failure analysis if no solver, non-claims (no held-out B=3, no landscape, no score-variant plots)" | This file is `02_plan.md`. [02.md](02.md) outline in §"What 02.md will report" below. Also update [01_draft_lifted_policy_az.md](01_draft_lifted_policy_az.md): §0 (drop "still ships the live `aux_var` hole"), §8.5 (proposed → **landed in Stage 2**), §10 ladder (Stage-2 row → the new minimal-MCTS result; Stage-5 row → drop the "§8.2 cutover" item), changelog/refs. Keep `legacy/02.md` / `legacy/03.md` linked as the aux-var record. | Brief; keeps the orientation doc honest about landed code. |
 
-## §2 Module / class design
+## The grammar redesign (occurrence-introduced variables)
 
-### §2.1 `src/alphazeropp/synthesis/lifted_grammar.py`
-
-```python
-@dataclass(frozen=True)
-class LiftedGrammarConfig:
-    max_rules: int = 4
-    max_pre_literals: int = 3
-    max_goal_literals: int = 1
-    max_aux_vars: int = 1
-    allow_goal_negation: bool = True
-    allow_state_negation: bool = False
-    allow_disjunction: bool = False
-    allow_constants: bool = False
-
-@dataclass(frozen=True)
-class DomainSignature:
-    types: tuple[str, ...]                       # e.g. ("ball", "room")
-    predicates: tuple[PredicateSchema, ...]      # reuse lifted_dsl.PredicateSchema
-    action_schemas: tuple[ActionSchema, ...]     # reuse lifted_dsl.ActionSchema
-
-def gripper_lite_signature() -> DomainSignature: ...
-    # built from gripper_lite.env.PREDICATE_SCHEMAS / ACTION_SCHEMAS — do not re-declare
-
-@dataclass(frozen=True)
-class LiftedProduction:
-    """Mirror of synthesis.derivation.Production but lifted-aware."""
-    hole_kind: str          # "policy" | "action_schema" | "aux_var" | "pre_lit" | "goal_lit"
-    label: str              # human-readable, e.g. "ADD_RULE", "schema=move", "lit=at_robot(?r_0)"
-    payload: Any            # the lifted-dsl fragment to splice in (or sentinel for STOP/SKIP)
-
-def enumerate_productions(state: "LiftedDerivationState", cfg: LiftedGrammarConfig,
-                          sig: DomainSignature) -> list[LiftedProduction]: ...
-
-def compute_max_productions(cfg: LiftedGrammarConfig, sig: DomainSignature) -> int: ...
-    # Closed-form upper bound. Unit-tested directly.
-```
-
-Key invariants enforced inside `enumerate_productions`:
-- A `pre_lit` hole only offers literals strictly `>` the last accepted body literal under key `(source.value, predicate, args)`.
-- A `goal_lit` hole offers `(literal, negated=False)` and, if `cfg.allow_goal_negation` and all the literal's vars are safe (covered by positive body literals or action args), also `(literal, negated=True)`.
-- An `aux_var` hole offers `SKIP` plus one introduction per type in `sig.types` (if `current_aux_count < cfg.max_aux_vars`).
-- An `action_schema` hole offers `STOP_POLICY` (terminate the rule list) or one `schema=X` choice per `X in sig.action_schemas`. Choosing a schema fixes the action vars by **schema-position naming** (`?{prefix}_{i}`).
-- The `vars` tuple emitted with each finished `Rule` includes **every** action var **and** the aux var (if added) — [`Rule.__post_init__`](../../../src/alphazeropp/synthesis/lifted_dsl.py#L128) rejects any var used in body/action that is not declared in `rule.vars`.
-- Predicate literals are well-typed **by construction** — the grammar only instantiates `PredicateSchema`-compatible arg tuples. Note `Rule` itself does *not* check predicate arities (only `check_atom_against_schema` / `check_action_against_schema` do, and `Rule` does not call them), so the grammar is the sole guarantor of predicate well-typedness.
-
-### §2.2 `src/alphazeropp/synthesis/lifted_derivation.py`
-
-```python
-@dataclass
-class LiftedDerivationState:
-    cfg: LiftedGrammarConfig
-    sig: DomainSignature
-    completed_rules: tuple[Rule, ...]              # lifted_dsl.Rule
-    current_partial_rule: Optional["PartialRule"]  # None when no rule in progress
-    current_hole: str                              # "policy" | "action_schema" | ...
-
-    @staticmethod
-    def initial(cfg: LiftedGrammarConfig, sig: DomainSignature) -> "LiftedDerivationState": ...
-
-    def legal_productions(self) -> list[LiftedProduction]: ...
-    def apply(self, prod: LiftedProduction) -> "LiftedDerivationState": ...  # pure: returns a fresh state, never mutates self
-    def is_terminal(self) -> bool: ...
-    def to_program(self) -> Policy: ...
-    def pretty(self) -> str: ...
-
-class LiftedDerivationGame(Game):
-    """Mirrors DerivationGame but for the lifted grammar.
-    Drives MCTS via reset/step/get_action_mask (+ stash/unstash for tree search)."""
-
-    def __init__(self, cfg: LiftedGrammarConfig, sig: DomainSignature,
-                 leaf_evaluator: "LiftedLeafEvaluator"): ...
-
-    # -- strictly required by the Game protocol --
-    def reset(self, **kw) -> tuple[np.ndarray, dict]: ...
-    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict]: ...
-    def get_action_mask(self) -> np.ndarray: ...
-    # action_space = spaces.Discrete(self._max_productions); observation_space = spaces.Box(...)
-
-    # -- overridden for performance / correctness (defaults would deepcopy the evaluator) --
-    def stash_state(self) -> tuple: ...     # (deriv_state, current_productions, obs, reward, terminated, truncated, info, step_count) — leaf_evaluator stays shared
-    def unstash_state(self, s: tuple) -> "LiftedDerivationGame": ...
-    def clone(self) -> "LiftedDerivationGame": ...  # new game pointing at the same leaf_evaluator, then unstash_state(self.stash_state())
-
-    @property
-    def hashable_obs(self) -> str: ...      # self._deriv_state.pretty() — canonical program string as the MCTS node key
-```
-
-Notes on the `Game` interface (cross-checked against [core/game.py](../../../src/alphazeropp/core/game.py:12)):
-- **Strictly required:** `step`, `reset`, `get_action_mask`, plus the `action_space` and `observation_space` fields. `reset_wrapper` / `step_wrapper` are provided by the base class.
-- **`stash_state` / `unstash_state` / `clone` are overridden** to keep `leaf_evaluator` *shared* — the base-class deepcopy default would clone the evaluator's cache dict on every MCTS simulation (a perf trap). Mirror [`DerivationGame.stash_state`](../../../src/alphazeropp/synthesis/derivation_game.py#L224) (saves only the derivation state + the base-class scalars).
-- **`hashable_obs` is overridden** to return `state.pretty()` (a canonical program string), so MCTS deduplicates α-equivalent partial programs for free — mirror [`DerivationGame.hashable_obs`](../../../src/alphazeropp/synthesis/derivation_game.py#L212).
-- **`apply` is purely functional** — it builds and returns a new `LiftedDerivationState` (including a fresh `PartialRule`) and never mutates `self`; this is what makes `stash_state` returning the bare state object safe (mirror [`DerivationState.apply`](../../../src/alphazeropp/synthesis/derivation.py#L484)).
-
-### §2.3 `src/alphazeropp/synthesis/lifted_encoding.py`
-
-```python
-N_FIELDS_PER_NODE = 7  # (node_kind_id, predicate_id, action_id, type_id, var_local_id, source_id, negated_bit)
-
-def encode_max_len(cfg: LiftedGrammarConfig) -> int:
-    # one node per finished literal + one per finished rule + one policy-stop node
-    return N_FIELDS_PER_NODE * (cfg.max_rules * (1 + cfg.max_pre_literals + cfg.max_goal_literals + cfg.max_aux_vars) + 1)
-
-def encode_state(state: LiftedDerivationState, sig: DomainSignature,
-                 max_len: int) -> np.ndarray:
-    """Deterministic preorder encoding of the partial AST.
-    Returns float32 array of shape (max_len,).
-    For each node in preorder, emits N_FIELDS_PER_NODE values; padded/truncated with zeros."""
-```
-
-`LiftedDerivationGame.__init__` sets `observation_space = spaces.Box(low=-inf, high=inf, shape=(encode_max_len(cfg),), dtype=np.float32)`. Node-kind id table is internal to this module; documented inline. Stage 2 only needs determinism — no training reads this.
-
-### §2.4 `src/alphazeropp/synthesis/lifted_leaf_evaluator.py`
-
-```python
-class LiftedLeafEvaluator:
-    """Cache-by-pretty leaf evaluator for lifted policies."""
-
-    def __init__(self,
-                 train_instances: list[GripperLiteEnv],     # one env per n_balls; reset() before each rollout (the env is mutable, not immutable)
-                 eval_in_instances: list[GripperLiteEnv],   # may alias train_instances for single-instance B=1/B=2 runs
-                 eval_out_instances: list[GripperLiteEnv],
-                 *,
-                 step_penalty: float = 0.01,
-                 noop_penalty: float = 0.05,
-                 progress_weight: float = 0.25,
-                 horizon: Optional[int] = None): ...
-
-    def __call__(self, program: Policy) -> float:
-        """Return the training score. Side effects: populate self._cache[key]
-        with full diagnostics dict {train_solve_rate, eval_in_solve_rate,
-        eval_out_solve_rate, avg_steps, num_noops, num_binding_attempts, ...}."""
-
-    def metrics_for(self, program: Policy) -> dict: ...  # read from cache
-
-    def _rollout_one(self, env, program) -> dict:
-        """Run interpret() in a loop. Returns dict with solved, steps,
-        num_noops, num_binding_attempts, final_progress."""
-```
-
-Per-instance rollout pseudo:
-
-```python
-state = env.reset()
-num_noops = num_binding_attempts = 0
-for _ in range(horizon):
-    if env.is_solved(): break
-    out = interpret(program, env.get_state_atoms(), env.get_goal_atoms(),
-                    env.get_objects_by_type(), env.legal_actions(), trace=True)
-    num_binding_attempts += rules_tried_proxy(out, program)
-    if out is None:
-        num_noops += 1
-        break    # policy stalled
-    action, _rule_idx, _theta = out
-    env.step(action)
-```
-
-Where `rules_tried_proxy = (rule_idx + 1) if out is not None else len(program.rules)`. Records the load-bearing "graded reward for partial programs" signal the goal asks for.
-
-**Definition of `num_binding_attempts` (JSONL key kept for spec-compatibility with the draft).** It is `Σ` over rollout steps of *the number of rules evaluated before one fired* — i.e. `rule_idx + 1` on a firing step, `len(policy.rules)` on a stall. This is a **rule-evaluation proxy**, not the literal count of unification attempts inside [`find_bindings`](../../../src/alphazeropp/synthesis/lifted_interpreter.py#L89); instrumenting `find_bindings` would mean touching a Stage 1 module, which Stage 2 avoids. The proxy is monotone in the real quantity and adequate for the "is MCTS exploring complete programs?" debugging question. (Recorded as a refinement delta in `02.md` §6.)
-
-### §2.5 `scripts/run/run_lifted_gripper_lite_smoke.py`
-
-Placed under `scripts/run/` to match the 40+ existing run-scripts (the draft wrote `scripts/run_lifted_gripper_lite_smoke.py`; corrected to repo convention). Argparse surface matches the draft exactly:
+**Holes & transitions** (`LiftedDerivationState.current_hole`):
 
 ```
---n-balls-train INT         (default 1)
---n-balls-eval  INT         (default 2)
---max-rules     INT         (default 3)
---mcts-sims     INT         (default 128)
---seed          INT         (default 0)
---out-jsonl     PATH        (required)
+                ADD_RULE            schema=X                       STOP_PRE
+   policy ───────────────▶ action_schema ──────────────▶ pre_lit ──────────────▶ goal_lit
+     │  ▲                                                  │ ⟲ pre:ℓ                │ ⟲ goal:ℓ
+     │  │                                                  (≤ L_S, may introduce    (≤ L_G, vars must
+     │  │ FINISH_RULE (seal q into C, hole → policy)         a fresh ?v_i body-local  already be in scope)
+     │  └──────────────────────────────────────────────────────────────────────────────┘
+     │ STOP_POLICY (#completed rules ≥ 1)
+     ▼
+     ⊥   (terminal: q = ∅, h = ⊥)
 ```
 
-Behavior:
-1. Build `cfg = LiftedGrammarConfig(max_rules=args.max_rules, ...)`.
-2. Build `sig = gripper_lite_signature()`.
-3. Build `train_envs = [GripperLiteEnv(n_balls=n_balls_train, seed=args.seed)]`, `eval_in_envs = train_envs` (the *same* object — every rollout `reset()`s the env first, so the alias is safe and intentional), `eval_out_envs = [GripperLiteEnv(n_balls=n_balls_eval, seed=args.seed)]`.
-4. Build `evaluator = LiftedLeafEvaluator(...)`.
-5. Build `game = LiftedDerivationGame(cfg, sig, evaluator)`; reset.
-6. `net = UniformPolicyValueNet(game._max_productions)`.
-7. `mcts = MCTS(game, net, n_simulations=args.mcts_sims, temperature=0.1, c_exploration=1.5)` (parameters cribbed from the existing [scripts/run/run_derivation_mcts.py](../../../scripts/run/run_derivation_mcts.py#L281)).
-8. Round loop: until game terminated, `probs = mcts.perform_simulations(None); a = argmax(probs); game.step_wrapper(a)`. At terminal, read `program = state.to_program()` and `score = evaluator(program)`; if `score > best_so_far`, append a JSONL line.
-9. JSONL line fields (one per "new best"): `{seed, mcts_sims, train_solve_rate, eval_in_solve_rate, eval_out_solve_rate, score, avg_steps, num_rules, num_literals, num_noops, num_binding_attempts, wall_time, policy_pretty}`.
+The `aux_var` hole and the `SKIP_AUX` / `add_aux:{type}` productions are deleted. `schema=X` introduces the schema-position action variables and leaves the hole at `pre_lit`.
 
-## §3 Tests
+**`pre_lit` productions.** For predicate `p(t_1,…,t_n)` and the current rule's variable scope `V` (= action args ∪ body-local vars introduced so far):
 
-All tests under `tests/`. Mirror Stage 1's pattern ([test_lifted_dsl_v2.py](../../../tests/test_lifted_dsl_v2.py), [test_lifted_interpreter.py](../../../tests/test_lifted_interpreter.py)) with pytest fixtures and direct assertions.
+- if `n == 0` (nullary, e.g. `handempty()`): the single literal `p()` (if greater than `last_lit` under `_lit_key`);
+- otherwise, for each tuple `(a_1,…,a_n)` where `a_j ∈ {existing vars of type t_j in V}` **and**, if the rule has `< max_body_local_vars` body-local vars, optionally a single shared placeholder per "fresh slot" — fresh vars introduced left-to-right and named `?v_{k}`, `?v_{k+1}`, … where `k` = current body-local-var count: emit `p(a_1,…,a_n)` (if greater than `last_lit`). State literals are never negated.
 
-### `tests/test_lifted_grammar.py`
+A fresh var is added to `partial.body_local_vars` *only* when the chosen `pre_lit` literal actually uses it. Cap: `len(partial.state_lits) < max_pre_literals` and `len(partial.body_local_vars) ≤ max_body_local_vars`.
 
-| Test | What it checks | Why it matters |
-|---|---|---|
-| `test_grammar_generates_well_typed_rules` | Apply a chain of productions from initial state through one full rule; assert the resulting `Rule` passes `Rule.__post_init__` (no exception). | Production fragments must compose into objects the Stage 1 DSL accepts. |
-| `test_grammar_can_express_hand_policy_rules` | For each of the four hand-policy rules in [policies.py](../../../src/alphazeropp/instances/gripper_lite/policies.py), find a sequence of productions that produces a `Rule` α-equivalent to it. | Proves the grammar's expressivity bound is correct — the load-bearing claim that "Stage 2 can in principle find the Stage 1 policy." |
-| `test_literal_lists_are_canonical` | After applying productions that try to add a duplicate literal or a literal smaller than the last accepted one, the grammar offers neither. | Eliminates α/`And`-commutativity equivalence classes from the search space. |
-| `test_alpha_equivalent_rules_have_same_pretty` | Construct rule R₁ and rule R₂ by adding the same literals in the same canonical order under schema-position naming; assert `R₁.pretty() == R₂.pretty()`. | Validates the §0 decision: schema-position naming kills α-equivalence by construction. |
-| `test_compute_max_productions_is_a_real_upper_bound` | For 50 random derivation paths, `len(state.legal_productions()) ≤ compute_max_productions(cfg, sig)` at every state visited. | The `Discrete(action_space)` dimension must not be undercounted, otherwise MCTS will index out of bounds. |
-| `test_safe_negation_at_grammar_level` | A `goal_lit` hole offers a negated literal only when its vars are covered by already-added positive literals or action args. | Prevents the grammar from emitting programs the DSL `Rule.__post_init__` will reject — keeps "found a complete policy" probability high. |
+**`goal_lit` productions.** For predicate `p(t_1,…,t_n)` with `p ∈ sig.goal_predicate_names` (when `goal_predicate_relevance`): for each tuple of *existing* in-scope vars `(a_1,…,a_n)` of matching types (no fresh-var path), emit positive `Goal[p(a_1,…,a_n)]` (if greater than `last_lit`), plus the negated form when `allow_goal_negation` and every `a_j` is positively covered. `FINISH_RULE` always offered. Cap: `len(partial.goal_lits) < max_goal_literals`.
 
-### `tests/test_lifted_derivation_game.py`
+**`FINISH_RULE`** builds `Rule(vars = action_args + body_local_vars, body = state_lits + goal_lits, action = LiftedAction(schema, action_args))`. By construction this passes `Rule.__post_init__`: every body/action var is declared (action args + body-local vars cover everything a literal can mention); safe negation holds (negated goal lits only offered with all-covered vars); no goal-only var (goal literals add nothing); no unused declared var (a body-local var is born inside the state literal that uses it). Bodyless rules (`⊤ ⇒ move(?r_0,?r_1)`) remain legal.
 
-| Test | What it checks | Why it matters |
-|---|---|---|
-| `test_lifted_derivation_reaches_terminal_policy` | From `state = LiftedDerivationState.initial(cfg, sig)`, apply a hand-picked sequence of productions; assert `state.is_terminal()` and `state.to_program()` is a `Policy` whose pretty contains the expected rules. | The derivation state actually terminates. |
-| `test_terminal_policy_evaluator_runs_without_exception` | Take a terminal `Policy` (the hand-policy from Stage 1), pass it through `LiftedLeafEvaluator`, assert it returns a `float` and that `train_solve_rate == 1.0` for n_balls=2. | The evaluator–interpreter wiring is correct. |
-| `test_derivation_game_smoke_with_uniform_mcts` | Build `LiftedDerivationGame`, `UniformPolicyValueNet`, `MCTS(n_simulations=32)`. Run one episode end-to-end with `game.step_wrapper(int(np.argmax(mcts.perform_simulations(None))))`. Assert: no exceptions, `game.terminated` reached, a `Policy` was scored. | Stage 2's load-bearing systems check: MCTS drives the lifted game. |
-| `test_action_mask_matches_legal_productions` | At each state, `get_action_mask()[i] == True` iff `i < len(state.legal_productions())`. | Action-space contract for MCTS expansion. |
-| `test_clone_and_stash_state_round_trip` | After `state2 = game.clone()` then `game.step_wrapper(a)`, `state2`'s observation equals the pre-step observation. Same for `stash_state`/`unstash_state`. | MCTS deep-copies game state in `_expand_node`; cloning must be sound. |
+**`compute_max_productions(cfg, sig)`** (new): `max(2, len(action_schemas), pre_max + 1, goal_max + 1)` where `pre_max` / `goal_max` are the largest `len(literal_candidates(scope, sig, kind, last_lit=None, all-safe, cfg))` over each action schema `s`, with `scope = action_vars_for_schema(s) + (max_body_local_vars fresh vars per type)`; `pre` uses the fresh-var path, `goal` does not. Sound upper bound (tested).
 
-Regression: run `pytest tests/ -q --ignore=tests/test_zoning_game.py` and assert no new failures relative to Stage 1's 1144 passed / 2 skipped baseline.
+## Module / class changes
 
-## §4 Visualizations and what `02.md` will report
+- **`src/alphazeropp/synthesis/lifted_grammar.py`** — `LiftedGrammarConfig`: drop `max_aux_vars`, add `max_body_local_vars: int = 2`. `legacy_grammar_config()` / `strict_grammar_config()` unchanged in spirit (no longer mention aux vars). Remove the `aux_var` branch from `enumerate_productions`; `action_schema` is unchanged. Extend `literal_candidates` (or add a `pre_literal_candidates` helper) with the fresh-var path; `goal` candidates unchanged except they already use only `scope` vars. Rewrite `compute_max_productions`. Rename `aux_var_name` → `body_local_var_name` (or inline); in `canonical_rule_form` the canonical filler token `?aux_j` → `?v_j`. `goal_vars_locally_connected` / `rule_has_disconnected_goal_var` / `rule_has_vacuous_goal_predicate` kept (still used by `lifted_diagnostics.py` on arbitrary policies).
+- **`src/alphazeropp/synthesis/lifted_derivation.py`** — `PartialRule.aux_vars` → `body_local_vars` (grown lazily in the `pre_lit` "add" branch when the literal carries a fresh var). `all_vars()` = `action_args + body_local_vars` (de-duped). `LiftedDerivationState.current_hole ∈ {"policy","action_schema","pre_lit","goal_lit",None}`. `apply`: `action_schema` → hole `"pre_lit"`; delete the `aux_var` branch; `pre_lit` "add" also extends `body_local_vars` from any fresh var in the added literal (the production payload should carry the literal *and* the list of newly-introduced vars, to keep `apply` self-contained). `pretty()` drops aux commentary, keeps the typed var signature. `LiftedDerivationGame` / `_max_productions` / `_obs_len` / `stash` / `unstash` / `clone` otherwise unchanged. **`core/mcts.py`, `core/game.py`, `UniformPolicyValueNet` untouched.**
+- **`src/alphazeropp/synthesis/lifted_encoding.py`** — remove `_KIND_AUX_VAR`; remove `"aux_var"` from `_HOLE_ID` (renumber `{None:0, policy:1, action_schema:2, pre_lit:3, goal_lit:4}`); drop the `for v in p.aux_vars` node loop in `encode_state`; `encode_max_len`: `nodes_per_rule = 1 + cfg.max_pre_literals + cfg.max_goal_literals`.
+- **`src/alphazeropp/synthesis/lifted_leaf_evaluator.py`** — no change to the score path. (If a future need arises for per-rollout schema counts, add them as extra metric keys; not needed here.)
+- **`scripts/run/run_lifted_gripper_mcts_minimal.py`** (new) — see §"The minimal MCTS run" below.
+- **`scripts/run/make_lifted_gripper_mcts_minimal.py`** (new) — see §"Canonical driver & data layout".
+- **`scripts/plotting/plot_lifted_gripper_mcts_minimal.py`** (optional new) — best-score / solver-rate vs. sims, one panel per `B`, from `docs/notes/stage4/data/minimal_mcts/minimal_mcts.csv`.
+- **`docs/notes/stage4/01_draft_lifted_policy_az.md`** — §0, §8.5, §10, changelog/refs (above).
+- **Untouched:** `lifted_interpreter.py`, `lifted_dsl.py`, `lifted_diagnostics.py`, the Gripper-lite / Doors envs and policies, the legacy `make_lifted_gripper_canonical.py` / `make_lifted_gripper_landscape.py` / `run_lifted_gripper_diagnostic_grid.py` drivers and their `data/` outputs.
 
-`02.md` is the results companion. After the smoke runs complete, it will contain:
+## The minimal MCTS run — `scripts/run/run_lifted_gripper_mcts_minimal.py`
 
-- **§0 Introduction.** What Stage 2 wired up and the load-bearing claim ("uniform MCTS over the lifted grammar finds a nonzero-reward policy and at least one seed solves B=2").
-- **§1 Module diagram.** ASCII flow `LiftedGrammarConfig + DomainSignature → LiftedDerivationState → LiftedDerivationGame → MCTS(UniformPolicyValueNet) → terminal Policy → LiftedLeafEvaluator → score`. Cross-link each box to its file.
-- **§2 Grammar surface.** The four hand-policy rules expressed as production sequences, side by side with their `.pretty()`. Demonstrates the expressivity test.
-- **§3 Smoke run results.** Two tables:
-  - **Run A (B=1 train, B=2 eval-out):** rows = (seed, mcts_sims), columns = `best_score (dimensionless)`, `train_solve_rate`, `eval_out_solve_rate`, `num_rules`, `num_literals`, `wall_time (s)`. One row per (seed, sims) combination — 6 rows.
-  - **Run B (B=2 train, B=3 eval-out):** same shape, 6 rows.
-- **§4 The best-found policies.** For each run, print the highest-scoring `Policy.pretty()` and a short remark on whether it matches one of the four hand-policy rules. If a policy generalizes to B=3, call that out.
-- **§5 Graded-reward diagnostic** *(first-class figure, not optional)*. A scatter of all evaluated policies in Run B at sims=2048: **x-axis** `num_literals` (total body literals across rules), **y-axis** `leaf score` (dimensionless). Annotate the max-score policy on the plot; draw a horizontal reference line at `score = 0` (the "any nonzero reward" bar) and shade the band `score ≥ 1.0` (solved). For very small N a table is an acceptable fallback, but the scatter is the headline artifact — it is the visual answer to "do partial-shape policies receive graded scores rather than all-0/all-1?".
-- **§6 Refinement deltas.** Anything that changed between this plan and reality (per Stage 1's §6 convention) — plan vs actual. Must include: the `num_binding_attempts` rule-evaluation proxy (see §2.4), any line-count drift in the cited file ranges, and the final `compute_max_productions` / `encode_max_len` numbers.
-- **§7 What's next.** Stage 3 will replace `UniformPolicyValueNet` with a learned policy/value net; the encoding in `lifted_encoding.py` becomes load-bearing.
+```
+--balls {1,2}              (required)
+--max-rules INT            (default: 3 for B=1, 4 for B=2)
+--mcts-sims INT            (default: 256)
+--n-episodes INT           (default: 64)         independent MCTS plays
+--seed INT                 (default: 0)
+--c-exploration FLOAT      (default: 1.5)
+--out-jsonl PATH           (required)            best-so-far records (always) + every distinct terminal policy (if --log-all-terminals)
+--out-summary PATH         (required)            one summary JSON
+--log-all-terminals        (flag)
+```
 
-## §5 Critical files
+Per episode: fresh `LiftedDerivationGame(strict_grammar_config(max_rules=…), gripper_lite_signature(), LiftedLeafEvaluator([GripperLiteEnv(B)], [GripperLiteEnv(B)], [GripperLiteEnv(B)]))`; `MCTS(game, UniformPolicyValueNet(game._max_productions), n_simulations=…, c_exploration=…)`; loop `probs = mcts.perform_simulations(None); a = sample(probs); game.step_wrapper(a)` until `game.terminated`; `program = game.get_program()`; `score = evaluator(program)`; `metrics = evaluator.metrics_for(program)`.
 
-**To create:**
-- [src/alphazeropp/synthesis/lifted_grammar.py](../../../src/alphazeropp/synthesis/lifted_grammar.py)
-- [src/alphazeropp/synthesis/lifted_derivation.py](../../../src/alphazeropp/synthesis/lifted_derivation.py)
-- [src/alphazeropp/synthesis/lifted_encoding.py](../../../src/alphazeropp/synthesis/lifted_encoding.py)
-- [src/alphazeropp/synthesis/lifted_leaf_evaluator.py](../../../src/alphazeropp/synthesis/lifted_leaf_evaluator.py)
-- [scripts/run/run_lifted_gripper_lite_smoke.py](../../../scripts/run/run_lifted_gripper_lite_smoke.py)
-- [tests/test_lifted_grammar.py](../../../tests/test_lifted_grammar.py)
-- [tests/test_lifted_derivation_game.py](../../../tests/test_lifted_derivation_game.py)
-- [docs/notes/stage4/02.md](02.md) (results companion, written after the runs)
+**Classification** (separate cheap rollout on a fresh `GripperLiteEnv(B)` via `interpret(...)`, recording the multiset of *legal* schemas fired and the progress):
 
-**To reuse unmodified:**
-- [src/alphazeropp/core/mcts.py](../../../src/alphazeropp/core/mcts.py) — MCTS class, `perform_simulations`.
-- [src/alphazeropp/core/game.py](../../../src/alphazeropp/core/game.py) — `Game` abstract base.
-- [src/alphazeropp/synthesis/derivation_game.py:293–323](../../../src/alphazeropp/synthesis/derivation_game.py#L293) — `UniformPolicyValueNet`.
-- [src/alphazeropp/synthesis/lifted_dsl.py](../../../src/alphazeropp/synthesis/lifted_dsl.py) — `Var`, `Atom`, `Literal`, `Rule`, `Policy`, `LiftedAction`, `GroundAction`.
-- [src/alphazeropp/synthesis/lifted_interpreter.py](../../../src/alphazeropp/synthesis/lifted_interpreter.py) — `interpret`, `find_bindings`.
-- [src/alphazeropp/instances/gripper_lite/env.py](../../../src/alphazeropp/instances/gripper_lite/env.py) — `GripperLiteEnv`.
-- [src/alphazeropp/instances/gripper_lite/policies.py](../../../src/alphazeropp/instances/gripper_lite/policies.py) — `hand_policy` (used in tests as the reference target).
+- **solver** — the rollout reaches `env.is_solved()` within the horizon for that `B`;
+- **reasonable** — not a solver, but `progress > 0` **and** the rollout fires ≥ 1 legal `pick`, ≥ 1 legal `move`, ≥ 1 legal `drop`;
+- **degenerate** — the first `interpret(...)` is `None` (immediate stall), or only `None`/illegal attempts, or `progress == 0`.
 
-**To reference for style:**
-- [scripts/run/run_derivation_mcts.py](../../../scripts/run/run_derivation_mcts.py) — argparse + JSONL logging pattern.
-- [tests/test_derivation_game.py](../../../tests/test_derivation_game.py) — `TestMCTSIntegration` fixture + smoke-test idiom.
+(Per the brief: a "reasonable policy" is a solver *or* a positive-progress policy that uses all three task verbs; everything else is degenerate.)
 
-## §6 Verification
+`--out-jsonl` records (one JSON object per line): for the best-so-far stream — `{episode, unique_index, score, solved, progress, steps, noops, num_rules, num_literals, policy_pretty, classification}`; for `--log-all-terminals` — the same fields for every distinct `policy_pretty`. `--out-summary` JSON: `{balls, max_rules, mcts_sims, n_episodes, seed, c_exploration, n_unique, best_score, best_policy_pretty, best_metrics, n_solving, first_solver_episode, first_solver_unique_index, counts: {solver, reasonable, degenerate}, git_commit}`.
 
-End-to-end checks, in order:
+Smoke commands (used as the acceptance demo):
 
-1. **Unit tests pass.** `pytest tests/test_lifted_grammar.py tests/test_lifted_derivation_game.py -v` — all 11 tests above pass.
-2. **No regressions.** `pytest tests/ -q --ignore=tests/test_zoning_game.py` — count remains 1144 passed (or higher) / 2 skipped.
-3. **Smoke run A.**
-   ```
-   python scripts/run/run_lifted_gripper_lite_smoke.py \
-     --n-balls-train 1 --n-balls-eval 2 \
-     --max-rules 3 --mcts-sims 128 --seed 0 \
-     --out-jsonl /tmp/lifted_gripper_b1_seed0.jsonl
-   ```
-   Acceptance: script exits 0; `/tmp/lifted_gripper_b1_seed0.jsonl` has ≥ 1 line; the highest-`score` line has `score > 0.0`.
-4. **Smoke run B.**
-   ```
-   python scripts/run/run_lifted_gripper_lite_smoke.py \
-     --n-balls-train 2 --n-balls-eval 3 \
-     --max-rules 4 --mcts-sims 512 --seed 0 \
-     --out-jsonl /tmp/lifted_gripper_b2_seed0.jsonl
-   ```
-   Acceptance: same as Run A. Bonus: any seed in {0, 1, 2} at sims=2048 gets `train_solve_rate == 1.0`.
-5. **Manual: results companion `02.md`.** Once the runs complete, write `docs/notes/stage4/02.md` per §4 above. Re-run `/refine-results` on it before declaring Stage 2 done.
+```
+python scripts/run/run_lifted_gripper_mcts_minimal.py --balls 1 --mcts-sims 128 --n-episodes 8 --seed 0 \
+    --out-jsonl /tmp/mcts_b1.jsonl --out-summary /tmp/mcts_b1_summary.json --log-all-terminals
+python scripts/run/run_lifted_gripper_mcts_minimal.py --balls 2 --mcts-sims 256 --n-episodes 8 --seed 0 \
+    --out-jsonl /tmp/mcts_b2.jsonl --out-summary /tmp/mcts_b2_summary.json --log-all-terminals
+```
 
-## §7 Out of scope
+## Canonical driver & data layout — `scripts/run/make_lifted_gripper_mcts_minimal.py`
 
-Per the goal's "Success criteria" — these are explicitly **not** part of Stage 2:
+Matrix:
+- **B=1**: `mcts_sims ∈ {128, 512, 2048}`, `seeds ∈ {0,1,2,3,4}`, `max_rules = 3`, `n_episodes = 64`.
+- **B=2**: `mcts_sims ∈ {512, 2048, 8192}`, `seeds ∈ {0,1,2,3,4}`, `max_rules = 4`, `n_episodes = 64` for `sims ≤ 2048`, `n_episodes = 8` for `sims = 8192`.
+- `--skip-slow` omits the `sims = 8192` B=2 cell. Full command (without `--skip-slow`) documented here and in [02.md](02.md) §4.
 
-- Any baseline comparison (PG3, grounded-grammar AlphaZero, hand-written-policy benchmarks).
-- Learned policy/value network. Stage 2 uses `UniformPolicyValueNet` only.
-- Doors-domain integration. Gripper-lite is the sole domain.
-- Performance characterization / wall-clock claims. We log wall_time per JSONL line as a sanity number, not as a result.
-- Generalization claim for B=3. Recorded if it happens; not a success criterion.
+Per cell `<cell> = b{B}_sims{S}_seed{K}`: raw `results/lifted_gripper_lite/minimal_mcts/<cell>/all.jsonl` (gitignored). Committed under `docs/notes/stage4/data/minimal_mcts/`: `<cell>_best.jsonl`, `<cell>_summary.json`; plus `minimal_mcts.csv` (columns: `balls, mcts_sims, seed, n_episodes, n_unique, best_score, n_solving, first_solver_unique_index, count_solver, count_reasonable, count_degenerate`) and `summary.json` (per-`B` headline: best score over the grid, total solvers, first cell to find a solver, the best policy's pretty + metrics).
+
+## Tests and acceptance criteria
+
+Acceptance run set: `pytest tests/test_lifted_grammar_occurrence_vars.py tests/test_lifted_grammar.py tests/test_lifted_derivation_game.py tests/test_lifted_leaf_evaluator.py tests/test_lifted_gripper_mcts_minimal.py -v`.
+
+### New: `tests/test_lifted_grammar_occurrence_vars.py`
+| Test | Checks |
+|---|---|
+| `test_no_aux_var_hole_reachable` | over many random derivations from `LiftedDerivationState.initial()`, `state.current_hole` is never `"aux_var"`; `_HOLE_ID` has no `"aux_var"` key. |
+| `test_no_aux_production_labels` | no `LiftedProduction.label` ever contains `"aux"` / `"Aux"` / `"add_aux"` / `"SKIP_AUX"` (sampled across holes). |
+| `test_state_literal_can_introduce_fresh_body_local_var` | after `ADD_RULE`, `schema=move`, the `pre_lit` productions include one whose added literal is `carrying(?v_0)` with `?v_0:ball` *not* in `{?r_0,?r_1}` — and applying it grows `partial.body_local_vars` by exactly that var. |
+| `test_goal_literal_cannot_introduce_fresh_var` | at any `goal_lit` hole, every offered `goal:` literal's variables ⊆ current scope (action args ∪ body-local vars); no production introduces a new var. |
+| `test_disconnected_goal_var_impossible_by_construction` | over many random *complete* derivations, `rule_has_disconnected_goal_var(r) is False` for every rule `r` in the resulting policy. |
+| `test_vacuous_goal_predicate_not_offered_gripper` | with `gripper_lite_signature()` + `strict_grammar_config()`, no `goal_lit` hole ever offers a `Goal[carrying(...)]` or `Goal[handempty()]`. |
+| `test_all_four_hand_policy_rules_expressible` | each of `hand_policy().rules` has a reachable derivation (matched by `canonical_rule_form`). |
+| `test_terminal_policies_pass_post_init` | every random complete derivation's `to_program()` rules already satisfy `Rule.__post_init__` (constructing them didn't raise). |
+| `test_compute_max_productions_is_an_upper_bound` | over many random walks, `len(state.legal_productions(cfg, sig)) <= compute_max_productions(cfg, sig)`; parametrised across the 4 `(goal_predicate_relevance, require_goal_var_connected)` flag combos and `max_rules ∈ {1,3,4}`, `max_body_local_vars ∈ {0,1,2}`. |
+
+### New: `tests/test_lifted_gripper_mcts_minimal.py`
+| Test | Checks |
+|---|---|
+| `test_run_b1_smoke` | `run_lifted_gripper_mcts_minimal.main([... --balls 1 --mcts-sims 16 --n-episodes 2 ...])` completes; `--out-jsonl` is non-empty valid JSONL; `--out-summary` parses and has the documented keys incl. `counts == {solver,reasonable,degenerate}`. |
+| `test_run_b2_smoke` | same for `--balls 2 --mcts-sims 16 --n-episodes 2`. |
+| `test_classification_buckets_are_disjoint_and_total` | for a tiny `--log-all-terminals` run, `count_solver + count_reasonable + count_degenerate == n_unique`, and every solver has `solved == True`, every degenerate has `progress == 0` or stalled. |
+| `test_hand_policy_classifies_as_solver` | the script's classifier applied to `hand_policy()` on B=1 and B=2 returns `"solver"`. |
+
+### Updated
+- `tests/test_lifted_grammar.py` — rewrite `_derive_one_rule`, `_drive_to_first_goal_hole` (no aux step), `test_safe_negation_at_grammar_level`, `test_connectedness_*`, `test_positive_goal_literal_cannot_introduce_goal_only_aux_var` (now: a `goal_lit` can't introduce *any* var; the would-be disconnected literal is simply never offered), `test_spurious_runA_solver_no_longer_expressible` (the `?aux_0`-in-goal-literal shape is unreachable by construction; the bodyless `⊤ ⇒ move(...)` fragment is still derivable), `test_compute_max_productions_*`. Keep the well-typed-rules / canonical-order / α-equivalence / hand-policy-expressibility tests, updated for the new production sequence.
+- `tests/test_lifted_derivation_game.py` — drop aux references; keep `test_action_mask_matches_legal_productions`, `test_clone_and_stash_state_round_trip`, `test_derivation_game_smoke_with_uniform_mcts` (B=1); add `test_derivation_game_smoke_with_uniform_mcts_b2`.
+- `tests/test_lifted_leaf_evaluator.py` — same-`B` setup (`train=eval_in=eval_out=[GripperLiteEnv(B)]`); keep `test_evaluator_returns_num_rule_evals_and_alias`, `test_aggregate_metrics_for_shape` (hand policy B=1 ⇒ `solve_rate=1.0, avg_steps=3.0, num_noops=0`).
+- `tests/test_lifted_diagnostics.py` — keep (the pathology analyzer must still flag a hand-built rule with a disconnected non-action var); optionally rename the `?aux_0` fixture token to `?v_0`.
+- `tests/test_run_lifted_gripper_diagnostic_grid.py` — run; minimal fix or `xfail` (with a pointer to this plan) if a stale assumption breaks.
+
+Regression: `pytest tests/ -q --ignore=tests/test_zoning_game.py` — no new failures vs. before (the pre-existing archive collection error, if surfaced, is unrelated).
+
+Acceptance criteria: (i) the five-file `pytest` set passes; (ii) the B=1 and B=2 smoke commands run and write well-formed `--out-jsonl` / `--out-summary` with `counts` distinguishing solver / reasonable / degenerate; (iii) `grep -rn "aux_var\|max_aux_vars\|SKIP_AUX\|add_aux\|_KIND_AUX_VAR" src/` is empty; (iv) `core/mcts.py` and `lifted_interpreter.py` are unchanged (`git diff` empty); (v) `02.md` reports B=1 and B=2 results honestly (incl. a failure analysis if no B=2 solver) and claims nothing about generalization / learned AlphaZero / Doors; (vi) optionally `make_lifted_gripper_mcts_minimal.py --skip-slow` populates `docs/notes/stage4/data/minimal_mcts/`.
+
+## What [02.md](02.md) (results companion) will report
+
+Written **after** the acceptance set passes and the canonical driver (at least `--skip-slow`) has run. Sections:
+
+- **§0** intro & scope — in: the grammar cutover + a minimal uniform-MCTS feasibility run on Gripper-lite B∈{1,2}, same-`B`; out: held-out generalization, landscape, learned net, Doors MCTS, PG3.
+- **§1** grammar redesign summary — before/after hole-state machine diagram; the production catalogue diff (the two aux rows removed; the `pre_lit` row gains "may introduce a fresh `?v_i`"; the `goal_lit` row — connectedness now structural); a worked ρ₂ derivation showing `pre:carrying(?v_0)` introducing the body-local var; `compute_max_productions` old (13) vs new value.
+- **§2** test summary — auto from `pytest --tb=no -v` over the five files; the `pytest tests/ -q` regression count vs `main`/before; the `grep` "no `aux_var` in `src/`" check.
+- **§3** B=1 MCTS results — a table over (`mcts_sims` × `seed`): `n_unique`, `best_score`, `n_solving`, `first_solver_unique_index`, `count_solver / reasonable / degenerate`; a one-line summary of how sims affects solver discovery.
+- **§4** B=2 MCTS results — the same table; the full canonical command (incl. `sims=8192`) documented even if `--skip-slow` was used for the committed run.
+- **§5** best-policy examples — the best policy per `B` pretty-printed, with a step-by-step rollout trace (rule / grounded action / θ); a couple of representative *reasonable non-solver* policies and where they help.
+- **§6** failure analysis — if no B=2 solver: what the best B=2 policies look like, exactly where they stall (which rule fires / which doesn't, missing the return-trip `move`), the logs preserved under `data/minimal_mcts/` as evidence.
+- **§7** refinement deltas vs this plan — table of anything that changed during implementation.
+- **§8** limitations — uniform-prior MCTS, not learned AlphaZero (any policy is a search artifact); same-`B` only — no generalization claim; no Doors MCTS; the old `data/runA_*` / `runB_*` / `landscape_*` / `diagnostic_grid/` are legacy aux-var-grammar artifacts; the optional figure (if produced) is the only plot — no landscape / score-variant plots.
+- **§9** what is not claimed — the brief's non-claims, verbatim-in-spirit.
+
+Also update [01_draft_lifted_policy_az.md](01_draft_lifted_policy_az.md): §0 (drop the "still ships the live `aux_var` hole" sentence), §8.5 (proposed → landed in Stage 2; the cutover is done), §10 ladder (Stage-2 row → the new minimal-MCTS result with a pointer to `02.md`; Stage-5 row → drop the "§8.2 occurrence-introduced cutover" item), the changelog item #9 and the references list.
+
+## Critical files
+
+**To create** — `scripts/run/run_lifted_gripper_mcts_minimal.py`, `scripts/run/make_lifted_gripper_mcts_minimal.py`, `tests/test_lifted_grammar_occurrence_vars.py`, `tests/test_lifted_gripper_mcts_minimal.py`, `docs/notes/stage4/data/minimal_mcts/` (committed artifacts), `docs/notes/stage4/02.md`; optionally `scripts/plotting/plot_lifted_gripper_mcts_minimal.py`.
+**To edit** — `src/alphazeropp/synthesis/lifted_grammar.py`, `src/alphazeropp/synthesis/lifted_derivation.py`, `src/alphazeropp/synthesis/lifted_encoding.py`, `tests/test_lifted_grammar.py`, `tests/test_lifted_derivation_game.py`, `tests/test_lifted_leaf_evaluator.py`, `tests/test_run_lifted_gripper_diagnostic_grid.py` (minimal), `docs/notes/stage4/01_draft_lifted_policy_az.md` (§0, §8.5, §10, changelog, refs).
+**To reference (read-only)** — `src/alphazeropp/synthesis/lifted_dsl.py` / `lifted_interpreter.py` / `lifted_diagnostics.py` (unchanged); `src/alphazeropp/core/mcts.py` / `core/game.py` and `UniformPolicyValueNet` in `src/alphazeropp/synthesis/derivation_game.py` (unchanged); `src/alphazeropp/instances/gripper_lite/{env,policies}.py`; `scripts/run/run_lifted_gripper_lite_smoke.py` / `make_lifted_gripper_canonical.py` (the legacy run-script shape mirrored); `docs/notes/stage4/notes/derivation_game.md` (to be rewritten in a follow-up — see `notes/rewrite.md`).
+**To leave untouched** — `lifted_interpreter.py`, `lifted_dsl.py`, `core/mcts.py`, `core/game.py`, the Gripper-lite / Doors envs and policies, the legacy `make_lifted_gripper_canonical.py` / `make_lifted_gripper_landscape.py` / `run_lifted_gripper_diagnostic_grid.py` and their committed `data/` outputs.
+
+## Verification
+
+1. **Acceptance set:** `pytest tests/test_lifted_grammar_occurrence_vars.py tests/test_lifted_grammar.py tests/test_lifted_derivation_game.py tests/test_lifted_leaf_evaluator.py tests/test_lifted_gripper_mcts_minimal.py -v` → all green.
+2. **No regression:** `pytest tests/ -q --ignore=tests/test_zoning_game.py` → same pass/fail/skip count as before plus the new passes.
+3. **No aux-var residue in `src/`:** `grep -rn "aux_var\|max_aux_vars\|SKIP_AUX\|add_aux\|_KIND_AUX_VAR" src/` → empty (in `tests/` only intentional historical mentions, if any).
+4. **Core untouched:** `git diff -- src/alphazeropp/core/mcts.py src/alphazeropp/core/game.py src/alphazeropp/synthesis/lifted_interpreter.py src/alphazeropp/synthesis/lifted_dsl.py` → empty.
+5. **Smoke runs:** the two B=1 / B=2 smoke commands above run and produce well-formed `--out-jsonl` (≥ 1 best-so-far record) + `--out-summary` (the documented keys, `counts` summing to `n_unique`).
+6. **Canonical driver:** `python scripts/run/make_lifted_gripper_mcts_minimal.py --skip-slow` populates `docs/notes/stage4/data/minimal_mcts/` (per-cell `*_best.jsonl` + `*_summary.json`, `minimal_mcts.csv`, `summary.json`); raw `all.jsonl` under `results/lifted_gripper_lite/minimal_mcts/` (gitignored).
+7. **Docs render:** `02_plan.md` / `02.md` open cleanly; cross-links resolve; `02.md` reports B=1 and B=2 results (and an honest failure analysis if no B=2 solver) and makes no generalization / learned-AlphaZero / Doors claim; `01_draft_lifted_policy_az.md` no longer calls the redesign "proposed / not landed".
+
+Stage 2 is complete when checks 1–7 pass and [02.md](02.md) has been written.
+
+## What is not claimed
+
+- The MCTS prior is `UniformPolicyValueNet` — this is **uniform-prior MCTS, not learned AlphaZero**; any policy it finds is a *search artifact*, not a learned policy.
+- Stage 2 trains and evaluates on the **same `B`** — there is **no held-out generalization** result, no `J_out`, no B=3 evaluation.
+- No Stage-2.5 landscape enumeration; no score-variant plots.
+- No Doors MCTS — Doors has a relational adapter (Stage 1 rev. 1) and a hand policy, but no synthesized Doors policy.
+- No PG3 comparison.
+- Removing the `aux_var` *syntax* does not remove body-local variables — state literals still introduce them (hand-policy ρ₂ needs one).
+- If no B=2 solver is found, that is reported honestly with the logs as evidence — it is **not** spun as a success.

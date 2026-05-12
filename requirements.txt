@@ -1,0 +1,11 @@
+# Runtime + test dependencies for AlphaZero_PP (the repo's setup.py has install_requires=[]).
+# torch is installed separately, CPU-only, by the devcontainer postCreateCommand:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# (the default CUDA wheel is ~2.5 GB and unused on a CPU Codespace).
+numpy>=2.0
+gymnasium>=1.0
+matplotlib>=3.8
+networkx>=3.0
+pandas>=2.0
+pytest>=8.0
+pytest-xdist>=3.5

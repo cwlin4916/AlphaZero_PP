@@ -130,6 +130,17 @@ docs/notes/**/data/
 .claude/
 
 ######################################
+# Stage-4 results companions (small JSON/CSV summaries kept in git for reproducibility)
+# — these re-includes come *after* the broad ignores above, so they win.
+# Raw per-episode all.jsonl dumps live under results/ and stay ignored.
+######################################
+!docs/notes/stage4/data/
+!docs/notes/stage4/data/**/
+!docs/notes/stage4/data/**/*.json
+!docs/notes/stage4/data/**/*.jsonl
+!docs/notes/stage4/data/**/*.csv
+
+######################################
 # Misc
 ######################################
 *.tmp

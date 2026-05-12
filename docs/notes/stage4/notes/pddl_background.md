@@ -1,6 +1,6 @@
 # Appendix (Stage 4) — PDDL Background
 
-> Background reference for Stage 4. Cited from [../01.md](../01.md), [../02.md](../02.md), and the lifted DSL/grammar modules under [src/alphazeropp/synthesis/](../../../../src/alphazeropp/synthesis/). Style follows [../../appendix/sygus_background.md](../../appendix/sygus_background.md).
+> Background reference for Stage 4. Cited from [../01.md](../legacy/01.md), [../02.md](../legacy/02.md), and the lifted DSL/grammar modules under [src/alphazeropp/synthesis/](../../../../src/alphazeropp/synthesis/). Style follows [../../appendix/sygus_background.md](../../appendix/sygus_background.md).
 
 This note is self-contained: it defines PDDL on its own terms (philosophy, history, syntax), works through a small example, and then maps every PDDL concept onto this repository's lifted DSL so future stage-4 work can cite "PDDL" precisely.
 

@@ -1,0 +1,327 @@
+{
+  "meta": {
+    "max_rules": 3,
+    "max_pre_literals": 3,
+    "max_goal_literals": 1,
+    "max_aux_vars": 1,
+    "train_balls": [
+      1,
+      2
+    ],
+    "eval_balls": [
+      3,
+      4
+    ],
+    "constraints": [
+      "none",
+      "goal_predicate",
+      "connected",
+      "both"
+    ],
+    "max_policies": 5000,
+    "seed": 0,
+    "hand_policy_pretty": "\u03c1_1: carrying(?b) \u2227 at_robot(?r) \u2227 Goal[at_ball(?b, ?r)] \u21d2 drop(?b, ?r)\n\u03c1_2: carrying(?b) \u2227 at_robot(?from) \u2227 Goal[at_ball(?b, ?to)] \u21d2 move(?from, ?to)\n\u03c1_3: at_ball(?b, ?r) \u2227 at_robot(?r) \u2227 handempty() \u2227 \u00acGoal[at_ball(?b, ?r)] \u21d2 pick(?b, ?r)\n\u03c1_4: at_robot(?from) \u2227 at_ball(?b, ?to) \u2227 handempty() \u2227 \u00acGoal[at_ball(?b, ?to)] \u21d2 move(?from, ?to)",
+    "degenerate_drop_policy_pretty": "\u03c1_1: \u22a4 \u21d2 drop(?b_0, ?r_1)"
+  },
+  "none": {
+    "mode": "sampled",
+    "total_policies_evaluated": 5000,
+    "unique_policies_evaluated": 5000,
+    "solver_count_by_B": {
+      "1": 1,
+      "2": 0,
+      "3": 0,
+      "4": 0
+    },
+    "b1_solver_count": 1,
+    "b1_to_b2_generalizing_count": 0,
+    "b2_solver_count": 0,
+    "hand_policy_score": null,
+    "hand_policy_rank": null,
+    "degenerate_drop_policy_score": -0.1,
+    "degenerate_drop_policy_rank": 60,
+    "vacuous_goal_policy_count": 4384,
+    "disconnected_goal_policy_count": 811,
+    "best_policy_by_variant": {
+      "current": {
+        "policy_pretty": "\u03c1_1: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_2: handempty() \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_1) \u2227 \u00acGoal[handempty()] \u21d2 drop(?b_0, ?r_1)",
+        "value": 0.6074999999999999
+      },
+      "no_step_penalty": {
+        "policy_pretty": "\u03c1_1: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_2: handempty() \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_1) \u2227 \u00acGoal[handempty()] \u21d2 drop(?b_0, ?r_1)",
+        "value": 0.6375
+      },
+      "no_noop_penalty": {
+        "policy_pretty": "\u03c1_1: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_2: handempty() \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_1) \u2227 \u00acGoal[handempty()] \u21d2 drop(?b_0, ?r_1)",
+        "value": 0.6575
+      },
+      "progress_only": {
+        "policy_pretty": "\u03c1_1: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_2: handempty() \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_1) \u2227 \u00acGoal[handempty()] \u21d2 drop(?b_0, ?r_1)",
+        "value": 0.6875
+      },
+      "lexicographic": {
+        "policy_pretty": "\u03c1_1: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_2: handempty() \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_1) \u2227 \u00acGoal[handempty()] \u21d2 drop(?b_0, ?r_1)",
+        "value": [
+          0.5,
+          0.75,
+          -3.0,
+          -1.0
+        ]
+      }
+    },
+    "size_strata": {
+      "1r_0lit": 3,
+      "1r_1lit": 52,
+      "1r_2lit": 251,
+      "1r_3lit": 397,
+      "1r_4lit": 362,
+      "2r_1lit": 15,
+      "2r_2lit": 97,
+      "2r_3lit": 292,
+      "2r_4lit": 489,
+      "2r_5lit": 524,
+      "2r_6lit": 360,
+      "2r_7lit": 148,
+      "2r_8lit": 34,
+      "3r_10lit": 103,
+      "3r_11lit": 20,
+      "3r_12lit": 4,
+      "3r_2lit": 5,
+      "3r_3lit": 27,
+      "3r_4lit": 122,
+      "3r_5lit": 245,
+      "3r_6lit": 395,
+      "3r_7lit": 483,
+      "3r_8lit": 337,
+      "3r_9lit": 235
+    },
+    "wall_seconds": 18.562
+  },
+  "goal_predicate": {
+    "mode": "sampled",
+    "total_policies_evaluated": 5000,
+    "unique_policies_evaluated": 5000,
+    "solver_count_by_B": {
+      "1": 3,
+      "2": 0,
+      "3": 0,
+      "4": 0
+    },
+    "b1_solver_count": 3,
+    "b1_to_b2_generalizing_count": 0,
+    "b2_solver_count": 0,
+    "hand_policy_score": null,
+    "hand_policy_rank": null,
+    "degenerate_drop_policy_score": -0.1,
+    "degenerate_drop_policy_rank": 77,
+    "vacuous_goal_policy_count": 0,
+    "disconnected_goal_policy_count": 1216,
+    "best_policy_by_variant": {
+      "current": {
+        "policy_pretty": "\u03c1_1: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_2: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_3: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)",
+        "value": 0.6074999999999999
+      },
+      "no_step_penalty": {
+        "policy_pretty": "\u03c1_1: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_2: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_3: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)",
+        "value": 0.6375
+      },
+      "no_noop_penalty": {
+        "policy_pretty": "\u03c1_1: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_2: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_3: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)",
+        "value": 0.6575
+      },
+      "progress_only": {
+        "policy_pretty": "\u03c1_1: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_2: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_3: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)",
+        "value": 0.6875
+      },
+      "lexicographic": {
+        "policy_pretty": "\u03c1_1: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_2: carrying(?aux_0) \u2227 Goal[at_ball(?aux_0, ?r_1)] \u21d2 move(?r_0, ?r_1)\n\u03c1_3: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)",
+        "value": [
+          0.5,
+          0.75,
+          -3.0,
+          -1.0
+        ]
+      }
+    },
+    "size_strata": {
+      "1r_0lit": 3,
+      "1r_1lit": 32,
+      "1r_2lit": 126,
+      "1r_3lit": 249,
+      "1r_4lit": 222,
+      "2r_0lit": 7,
+      "2r_1lit": 62,
+      "2r_2lit": 213,
+      "2r_3lit": 417,
+      "2r_4lit": 499,
+      "2r_5lit": 420,
+      "2r_6lit": 294,
+      "2r_7lit": 112,
+      "2r_8lit": 28,
+      "3r_0lit": 2,
+      "3r_10lit": 52,
+      "3r_11lit": 17,
+      "3r_12lit": 1,
+      "3r_1lit": 17,
+      "3r_2lit": 63,
+      "3r_3lit": 165,
+      "3r_4lit": 312,
+      "3r_5lit": 435,
+      "3r_6lit": 461,
+      "3r_7lit": 410,
+      "3r_8lit": 253,
+      "3r_9lit": 128
+    },
+    "wall_seconds": 22.422
+  },
+  "connected": {
+    "mode": "sampled",
+    "total_policies_evaluated": 5000,
+    "unique_policies_evaluated": 5000,
+    "solver_count_by_B": {
+      "1": 2,
+      "2": 1,
+      "3": 1,
+      "4": 1
+    },
+    "b1_solver_count": 2,
+    "b1_to_b2_generalizing_count": 1,
+    "b2_solver_count": 1,
+    "hand_policy_score": null,
+    "hand_policy_rank": null,
+    "degenerate_drop_policy_score": -0.1,
+    "degenerate_drop_policy_rank": 330,
+    "vacuous_goal_policy_count": 4451,
+    "disconnected_goal_policy_count": 0,
+    "best_policy_by_variant": {
+      "current": {
+        "policy_pretty": "\u03c1_1: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: carrying(?b_0) \u2227 Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_0) \u2227 \u00acGoal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 1.2
+      },
+      "no_step_penalty": {
+        "policy_pretty": "\u03c1_1: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: carrying(?b_0) \u2227 Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_0) \u2227 \u00acGoal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 1.25
+      },
+      "no_noop_penalty": {
+        "policy_pretty": "\u03c1_1: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: carrying(?b_0) \u2227 Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_0) \u2227 \u00acGoal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 1.2
+      },
+      "progress_only": {
+        "policy_pretty": "\u03c1_1: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: carrying(?b_0) \u2227 Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_0) \u2227 \u00acGoal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": 1.25
+      },
+      "lexicographic": {
+        "policy_pretty": "\u03c1_1: \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: carrying(?b_0) \u2227 Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?r_0) \u2227 \u00acGoal[at_robot(?r_0)] \u21d2 move(?r_0, ?r_1)",
+        "value": [
+          1.0,
+          1.0,
+          -5.0,
+          -0.0
+        ]
+      }
+    },
+    "size_strata": {
+      "1r_0lit": 3,
+      "1r_1lit": 41,
+      "1r_2lit": 215,
+      "1r_3lit": 382,
+      "1r_4lit": 350,
+      "2r_1lit": 21,
+      "2r_2lit": 108,
+      "2r_3lit": 278,
+      "2r_4lit": 490,
+      "2r_5lit": 531,
+      "2r_6lit": 384,
+      "2r_7lit": 143,
+      "2r_8lit": 41,
+      "3r_10lit": 110,
+      "3r_11lit": 22,
+      "3r_2lit": 3,
+      "3r_3lit": 29,
+      "3r_4lit": 110,
+      "3r_5lit": 278,
+      "3r_6lit": 415,
+      "3r_7lit": 472,
+      "3r_8lit": 365,
+      "3r_9lit": 209
+    },
+    "wall_seconds": 18.76
+  },
+  "both": {
+    "mode": "sampled",
+    "total_policies_evaluated": 5000,
+    "unique_policies_evaluated": 5000,
+    "solver_count_by_B": {
+      "1": 4,
+      "2": 1,
+      "3": 1,
+      "4": 1
+    },
+    "b1_solver_count": 4,
+    "b1_to_b2_generalizing_count": 1,
+    "b2_solver_count": 1,
+    "hand_policy_score": null,
+    "hand_policy_rank": null,
+    "degenerate_drop_policy_score": -0.1,
+    "degenerate_drop_policy_rank": 187,
+    "vacuous_goal_policy_count": 0,
+    "disconnected_goal_policy_count": 0,
+    "best_policy_by_variant": {
+      "current": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_1) \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?aux_0) \u21d2 move(?r_0, ?r_1)",
+        "value": 1.2
+      },
+      "no_step_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_1) \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?aux_0) \u21d2 move(?r_0, ?r_1)",
+        "value": 1.25
+      },
+      "no_noop_penalty": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_1) \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?aux_0) \u21d2 move(?r_0, ?r_1)",
+        "value": 1.2
+      },
+      "progress_only": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_1) \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?aux_0) \u21d2 move(?r_0, ?r_1)",
+        "value": 1.25
+      },
+      "lexicographic": {
+        "policy_pretty": "\u03c1_1: at_robot(?r_1) \u2227 \u00acGoal[at_ball(?b_0, ?r_1)] \u21d2 pick(?b_0, ?r_1)\n\u03c1_2: Goal[at_ball(?b_0, ?r_1)] \u21d2 drop(?b_0, ?r_1)\n\u03c1_3: at_robot(?aux_0) \u21d2 move(?r_0, ?r_1)",
+        "value": [
+          1.0,
+          1.0,
+          -5.0,
+          -0.0
+        ]
+      }
+    },
+    "size_strata": {
+      "1r_0lit": 3,
+      "1r_1lit": 27,
+      "1r_2lit": 111,
+      "1r_3lit": 222,
+      "1r_4lit": 210,
+      "2r_0lit": 7,
+      "2r_1lit": 58,
+      "2r_2lit": 210,
+      "2r_3lit": 388,
+      "2r_4lit": 496,
+      "2r_5lit": 403,
+      "2r_6lit": 285,
+      "2r_7lit": 94,
+      "2r_8lit": 22,
+      "3r_0lit": 2,
+      "3r_10lit": 47,
+      "3r_11lit": 20,
+      "3r_12lit": 1,
+      "3r_1lit": 27,
+      "3r_2lit": 84,
+      "3r_3lit": 192,
+      "3r_4lit": 329,
+      "3r_5lit": 474,
+      "3r_6lit": 480,
+      "3r_7lit": 433,
+      "3r_8lit": 241,
+      "3r_9lit": 134
+    },
+    "wall_seconds": 24.759
+  }
+}

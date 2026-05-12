@@ -1,0 +1,31 @@
+{
+  "1": {
+    "n_cells": 15,
+    "best_score_over_grid": 1.22,
+    "best_score_cell": "b1_sims128_seed1",
+    "total_solver_policies": 7,
+    "total_reasonable_policies": 0,
+    "n_cells_with_a_solver": 7,
+    "first_solver_cells": [
+      "b1_sims128_seed1",
+      "b1_sims128_seed3",
+      "b1_sims128_seed4",
+      "b1_sims512_seed1",
+      "b1_sims512_seed2",
+      "b1_sims512_seed3",
+      "b1_sims2048_seed4"
+    ]
+  },
+  "2": {
+    "n_cells": 10,
+    "best_score_over_grid": 1.18,
+    "best_score_cell": "b2_sims512_seed1",
+    "total_solver_policies": 4,
+    "total_reasonable_policies": 1,
+    "n_cells_with_a_solver": 2,
+    "first_solver_cells": [
+      "b2_sims512_seed1",
+      "b2_sims2048_seed4"
+    ]
+  }
+}

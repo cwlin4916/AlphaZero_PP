@@ -1,0 +1,17 @@
+run_id,run,grammar_config_name,baseline,seed,sims,episodes,train_B,eval_B,max_rules,unique_policies,terminal_evals,best_score,train_solve_rate_best,eval_out_solve_rate_best,first_solver_idx,solver_count,root_entropy_mean,root_entropy_final,n_vacuous_goal,n_goal_only_var,n_empty_body,n_top_drop,n_top_pick,n_top_move,git_commit
+A_legacy_mcts_seed0_sims64,A,legacy,mcts,0,64,8,1,2,3,297,297,-0.05,0.0,0.0,,0,1.3514162038462079,1.3810733422046186,221,65,28,26,1,1,d9b867f
+A_legacy_mcts_seed1_sims64,A,legacy,mcts,1,64,8,1,2,3,305,305,-0.05,0.0,0.0,,0,1.240074638207869,1.303518026065085,260,101,11,2,3,6,d9b867f
+A_legacy_random_seed0_simsna,A,legacy,random,0,na,,1,2,3,297,297,-0.05,0.0,0.0,,0,,,241,44,6,2,1,3,d9b867f
+A_legacy_random_seed1_simsna,A,legacy,random,1,na,,1,2,3,305,305,-0.05,0.0,0.0,,0,,,253,47,6,2,3,1,d9b867f
+A_strict_mcts_seed0_sims64,A,strict,mcts,0,64,8,1,2,3,277,277,-0.05,0.0,0.0,,0,1.1038977271981492,1.0312781541378213,0,0,28,7,6,15,d9b867f
+A_strict_mcts_seed1_sims64,A,strict,mcts,1,64,8,1,2,3,377,377,-0.05,0.0,0.0,,0,1.0722945377389572,1.1472969486625963,0,0,35,8,11,16,d9b867f
+A_strict_random_seed0_simsna,A,strict,random,0,na,,1,2,3,277,277,-0.05,0.0,0.0,,0,,,0,0,49,9,10,32,d9b867f
+A_strict_random_seed1_simsna,A,strict,random,1,na,,1,2,3,377,377,-0.05,0.0,0.0,,0,,,0,0,60,13,12,38,d9b867f
+B_legacy_mcts_seed0_sims64,B,legacy,mcts,0,64,8,2,3,4,344,344,-0.05,0.0,0.0,,0,1.2720601647112943,1.2335752985658295,277,73,48,42,0,6,d9b867f
+B_legacy_mcts_seed1_sims64,B,legacy,mcts,1,64,8,2,3,4,420,420,-0.05,0.0,0.0,,0,1.247355548131819,1.3211649408771138,352,118,14,3,2,9,d9b867f
+B_legacy_random_seed0_simsna,B,legacy,random,0,na,,2,3,4,344,344,-0.05,0.0,0.0,,0,,,289,64,13,5,3,5,d9b867f
+B_legacy_random_seed1_simsna,B,legacy,random,1,na,,2,3,4,420,420,-0.05,0.0,0.0,,0,,,350,65,18,6,5,8,d9b867f
+B_strict_mcts_seed0_sims64,B,strict,mcts,0,64,8,2,3,4,438,438,-0.05,0.0,0.0,,0,1.1255436657849731,1.067185388870339,0,0,92,10,63,22,d9b867f
+B_strict_mcts_seed1_sims64,B,strict,mcts,1,64,8,2,3,4,316,316,-0.05,0.0,0.0,,0,1.104855829303882,1.089667482860982,0,0,37,8,10,19,d9b867f
+B_strict_random_seed0_simsna,B,strict,random,0,na,,2,3,4,438,438,0.045,0.0,0.0,,0,,,0,0,92,18,17,63,d9b867f
+B_strict_random_seed1_simsna,B,strict,random,1,na,,2,3,4,316,316,-0.05,0.0,0.0,,0,,,0,0,50,7,12,33,d9b867f

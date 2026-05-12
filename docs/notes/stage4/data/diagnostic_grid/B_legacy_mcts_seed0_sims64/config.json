@@ -1,0 +1,27 @@
+{
+  "run_id": "B_legacy_mcts_seed0_sims64",
+  "run": "B",
+  "grammar_config_name": "legacy",
+  "baseline": "mcts",
+  "seed": 0,
+  "sims": 64,
+  "episodes": 8,
+  "train_B": 2,
+  "eval_B": 3,
+  "max_rules": 4,
+  "grammar_config": {
+    "max_rules": 4,
+    "max_pre_literals": 3,
+    "max_goal_literals": 1,
+    "max_aux_vars": 1,
+    "allow_goal_negation": true,
+    "allow_state_negation": false,
+    "allow_disjunction": false,
+    "allow_constants": false,
+    "goal_predicate_relevance": false,
+    "require_goal_var_connected": false
+  },
+  "git_commit": "d9b867f",
+  "random_budget": null,
+  "matched_unique_budget": null
+}

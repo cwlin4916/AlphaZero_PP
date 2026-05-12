@@ -1,47 +1,58 @@
 #!/usr/bin/env python3
-"""Formal-formulation diagrams for the lifted derivation game (``docs/notes/stage4/02.md`` §3).
+"""Formal-formulation diagrams for the lifted derivation game.
 
-Produces, into ``docs/notes/stage4/figures/``:
+Companion to ``docs/notes/stage4/notes/derivation_game.md`` (figures D1–D8) —
+the **occurrence-introduced-variable** grammar (no ``aux_var`` hole; body-local
+variables ``?v_0, ?v_1, …`` are born inside the precondition literal that first
+uses them; goal literals introduce none). Produces, into
+``docs/notes/stage4/figures/``:
 
-- ``02_derivation_state_machine.png`` — the five hole kinds as a finite-state
-  machine over which a derivation runs (``policy -> action_schema -> aux_var ->
-  pre_lit -> goal_lit``, back to ``policy`` on ``FINISH_RULE``, to ``TERMINAL``
-  on ``STOP_POLICY``); each node annotated with its legal-production count.
+- ``02_derivation_state_machine.png`` — the four hole kinds as a finite-state
+  machine over which a derivation runs (``policy -> action_schema -> pre_lit ->
+  goal_lit``, back to ``policy`` on ``FINISH_RULE``, to ``TERMINAL`` on
+  ``STOP_POLICY``); each node annotated with its legal-production count. The
+  ``pre_lit`` hole is the widest (state literals may introduce a fresh body-local
+  variable in any argument position), and ``compute_max_productions(cfg, sig)``
+  sizes the MCTS action head.
 - ``02_derivation_example.png`` — one concrete derivation (the Stage-1
-  hand-policy rule rho_1, drop-at-goal) drawn as a labelled path through the
-  transition delta, ending at a terminal complete policy. The state at each step
-  is read from a live ``LiftedDerivationState``; the edge labels are the actual
-  ``LiftedProduction.label``s.
+  hand-policy rule ρ₂, move-toward-goal — chosen because its ``?v_0:ball`` is a
+  body-local variable born inside ``carrying(?v_0)``) drawn as a labelled path
+  through the transition delta, ending at a terminal complete policy. The state
+  at each step is read from a live ``LiftedDerivationState``; the edge labels are
+  the actual ``LiftedProduction.label``s.
 - ``02_derivation_production_sets.png`` — the legal-production set
   ``A(s) = enumerate_productions(s, cfg, sig)`` at one representative state per
-  hole kind, for the Gripper-lite signature; the ``goal_lit`` set is the widest
-  and ``compute_max_productions(cfg, sig) == 13`` is the action-space size.
+  hole kind, for the Gripper-lite signature; the ``pre_lit`` hole-kind is the
+  widest and ``M = compute_max_productions(cfg, sig)`` is the action-space size.
 - ``02_derivation_state_anatomy.png`` — six representative ``LiftedDerivationState``
   values with *every* field rendered explicitly (``completed_rules`` / ``partial``
-  = ``PartialRule(schema, action_args, aux_vars, state_lits, goal_lits)`` / the
-  single ``current_hole``), plus the state's ``pretty()`` key.
+  = ``PartialRule(schema, action_args, body_local_vars, state_lits, goal_lits)`` /
+  the single ``current_hole``), plus the state's ``pretty()`` key.
 - ``02_derivation_state_evolution.png`` — a field-by-field *diff* table along one
-  derivation (the build of hand-policy rule ρ₁): each row a state ``s_i``, each
-  highlighted cell the one field the applied production changed.
+  derivation (the build of hand-policy rule ρ₂): each row a state ``s_i``, each
+  highlighted cell the one field the applied production changed (the
+  ``pre:carrying(?v_0)`` step both extends ``state_lits`` *and* grows
+  ``body_local_vars``).
 - ``02_derivation_production_lengths.png`` — how long a derivation is: the per-rule
-  production breakdown (5 fixed + ≤P pre-lits + ≤G goal-lits), the analytic
-  complete-policy length range ``ℓ(π) ∈ [6, R·(P+G+5)+1]`` vs ``max_rules``, and
+  production breakdown (4 fixed + ≤P pre-lits + ≤G goal-lits), the analytic
+  complete-policy length range ``ℓ(π) ∈ [5, R·(P+G+4)+1]`` vs ``max_rules``, and
   the empirical length distribution over 5000 uniform-random derivations.
 - ``02_derivation_tree.png`` — one full derivation of a 3-rule policy (the
   Stage-1 hand-policy prefix ρ₁ drop-at-goal / ρ₂ move-toward-goal / ρ₃ pick)
   drawn as a grammar *parse tree*: the start symbol ``⟨Policy⟩`` at the root,
-  expanding through ``⟨Rule⟩ → ADD_RULE ⟨ActionSchema⟩ ⟨Aux⟩ ⟨PreList⟩ STOP_PRE
+  expanding through ``⟨Rule⟩ → ADD_RULE ⟨ActionSchema⟩ ⟨PreList⟩ STOP_PRE
   ⟨GoalList⟩ FINISH_RULE`` down to the terminal production labels (leaves,
   left-to-right = ``p₁ … p_T``, colour-coded by hole kind).  Complements
   ``02_derivation_example.png`` (the *linear* path through δ).
 - ``02_derivation_hypothesis_class.png`` — what the grammar can *say*: the
-  capacity tuple ``cfg = (R, L_S, L_G, V_aux)`` with its ``LiftedGrammarConfig``
-  defaults and the disabled switches; the program-space size (action-head width
-  ``M = compute_max_productions = 13``; the ``r1`` config fully enumerable at
-  1,166 distinct policies; ``r3`` stratified-sampled; ``R ≥ 3`` needed for any
-  solver); and a gallery of one real ``Rule`` per rule family (empty-body /
-  state-reactive / goal-conditioned / negated-goal guard / auxiliary-witness),
-  each built through the grammar — used by ``derivation_game.md`` §9 (Figure D8).
+  capacity tuple ``cfg = (R, L_S, L_G, V_b)`` (``V_b = max_body_local_vars``)
+  with its ``LiftedGrammarConfig`` defaults and the disabled switches; the
+  program-space size (action-head width ``M = compute_max_productions``; the old
+  aux-var-grammar ``r1`` config enumerable at ≈1,166 distinct policies — see
+  ``legacy/02.md``, not re-enumerated here; ``R ≥ 3`` needed for any solver); and
+  a gallery of one real ``Rule`` per rule family (empty-body / state-reactive /
+  goal-conditioned / negated-goal guard / body-local-variable), each built
+  through the grammar — used by ``derivation_game.md`` §9 (Figure D8).
 
 All of these are derived from the real grammar/derivation modules — nothing is
 hand-transcribed. Run from repo root::
@@ -79,11 +90,10 @@ from alphazeropp.synthesis.lifted_grammar import (  # noqa: E402
 OUT = REPO_ROOT / "docs" / "notes" / "stage4" / "figures"
 DPI = 160
 
-# hole-kind -> (face colour, edge colour) — shared across the three figures
+# hole-kind -> (face colour, edge colour) — shared across the figures
 HOLE_FACE = {
     "policy": "#e8f0fe",
     "action_schema": "#fde8e6",
-    "aux_var": "#fef6e0",
     "pre_lit": "#e6f4ea",
     "goal_lit": "#f3e8fd",
     None: "#eceff1",            # terminal
@@ -91,12 +101,11 @@ HOLE_FACE = {
 HOLE_EDGE = {
     "policy": "#1a73e8",
     "action_schema": "#d93025",
-    "aux_var": "#f9ab00",
     "pre_lit": "#188038",
     "goal_lit": "#8430ce",
     None: "#5f6368",
 }
-HOLE_ORDER = ["policy", "action_schema", "aux_var", "pre_lit", "goal_lit"]
+HOLE_ORDER = ["policy", "action_schema", "pre_lit", "goal_lit"]
 _SUB = "₀₁₂₃₄₅₆₇₈₉"  # subscript digits for state indices
 
 
@@ -111,8 +120,8 @@ def _grammar():
 def _pick(prods, *, label=None, pred=None, negated=None, argnames=None):
     """Select one production from ``prods`` by exact label, or by add-literal
     predicate — optionally pinned to a negation flag and/or an argument-name
-    tuple (to disambiguate e.g. ``Goal[at_ball(?aux_0, ?r_0)]`` from
-    ``Goal[at_ball(?aux_0, ?r_1)]`` when both are legal)."""
+    tuple (to disambiguate e.g. ``Goal[at_ball(?v_0, ?r_0)]`` from
+    ``Goal[at_ball(?v_0, ?r_1)]`` when both are legal)."""
     for p in prods:
         if label is not None and p.label == label:
             return p
@@ -145,28 +154,44 @@ def _state_after(cfg, sig, selectors):
     return steps, st
 
 
-# the Stage-1 hand-policy rule rho_1 (drop-at-goal), as a selector sequence
+# the Stage-1 hand-policy rule ρ₁ (drop-at-goal), as a selector sequence — its
+# variables are both action arguments (drop's schema is ball × room), so it
+# introduces no body-local variable. Used as the "goal-conditioned" gallery
+# exemplar (Fig D8).
 _RHO1 = [
     dict(label="ADD_RULE"),
     dict(label="schema=drop"),
-    dict(label="SKIP_AUX"),
-    dict(pred="at_robot"),
-    dict(pred="carrying"),
+    dict(pred="at_robot"),                                       # at_robot(?r_1)
+    dict(pred="carrying"),                                       # carrying(?b_0)
     dict(label="STOP_PRE"),
-    dict(pred="at_ball", negated=False),
+    dict(pred="at_ball", negated=False),                         # Goal[at_ball(?b_0, ?r_1)]
+    dict(label="FINISH_RULE"),
+    dict(label="STOP_POLICY"),
+]
+
+# the Stage-1 hand-policy rule ρ₂ (move-toward-goal), as a selector sequence —
+# move's schema is room × room, so the carried ball is a *body-local* variable
+# ``?v_0:ball``, born inside ``carrying(?v_0)`` and reused in the goal literal.
+# This is the running example for the worked-derivation figures (D3, D5).
+_RHO2 = [
+    dict(label="ADD_RULE"),
+    dict(label="schema=move"),
+    dict(pred="at_robot"),                                       # at_robot(?r_0)
+    dict(pred="carrying"),                                       # carrying(?v_0)  ← introduces ?v_0:ball
+    dict(label="STOP_PRE"),
+    dict(pred="at_ball", negated=False, argnames=("?v_0", "?r_1")),  # Goal[at_ball(?v_0, ?r_1)]
     dict(label="FINISH_RULE"),
     dict(label="STOP_POLICY"),
 ]
 
 # one representative state per hole kind, as a selector prefix
 _REP_PREFIX = {
-    "policy": [dict(label="ADD_RULE"), dict(label="schema=move"), dict(label="SKIP_AUX"),
+    "policy": [dict(label="ADD_RULE"), dict(label="schema=move"),
                dict(label="STOP_PRE"), dict(label="FINISH_RULE")],     # at policy, 1 rule done
     "action_schema": [dict(label="ADD_RULE")],
-    "aux_var": [dict(label="ADD_RULE"), dict(label="schema=pick")],
-    "pre_lit": [dict(label="ADD_RULE"), dict(label="schema=pick"), dict(label="add_aux:room")],
-    "goal_lit": [dict(label="ADD_RULE"), dict(label="schema=pick"), dict(label="add_aux:ball"),
-                 dict(label="STOP_PRE")],
+    "pre_lit": [dict(label="ADD_RULE"), dict(label="schema=pick")],
+    "goal_lit": [dict(label="ADD_RULE"), dict(label="schema=move"),
+                 dict(pred="at_robot"), dict(pred="carrying"), dict(label="STOP_PRE")],
 }
 
 
@@ -215,8 +240,9 @@ def _partial_str(st):
             "no rule in progress"
     body = " ∧ ".join(l.pretty() for l in (p.state_lits + p.goal_lits)) or "⊤"
     act = f"{p.schema}({', '.join(v.name for v in p.action_args)})" if p.schema else "<action?>"
-    aux = f"   aux=[{', '.join(f'{v.name}:{v.type_name}' for v in p.aux_vars)}]" if p.aux_vars else ""
-    return f"{body}  ⇒  {act}{aux}"
+    blv = (f"   body_local=[{', '.join(f'{v.name}:{v.type_name}' for v in p.body_local_vars)}]"
+           if p.body_local_vars else "")
+    return f"{body}  ⇒  {act}{blv}"
 
 
 # ---------------------------------------------------------------------------
@@ -230,17 +256,16 @@ def fig_state_machine() -> Path:
     count_label = {
         "policy": "|A(s)| = 1 or 2",
         "action_schema": f"|A(s)| = {len(reps['action_schema'][1])}",
-        "aux_var": f"|A(s)| = {len(reps['aux_var'][1])}",
-        "pre_lit": f"|A(s)| ≤ {len(reps['pre_lit'][1])}",
-        "goal_lit": f"|A(s)| ≤ {M} = M",
+        "pre_lit": f"|A(s)| ≤ M = {M}",
+        "goal_lit": f"|A(s)| ≤ {len(reps['goal_lit'][1])}",
     }
 
-    fig, ax = plt.subplots(figsize=(16.5, 5.6))
+    fig, ax = plt.subplots(figsize=(16.0, 5.8))
     y0 = 2.6
-    xs = {"policy": 1.5, "action_schema": 5.2, "aux_var": 8.9, "pre_lit": 12.6, "goal_lit": 16.3}
+    xs = {"policy": 1.6, "action_schema": 6.1, "pre_lit": 10.6, "goal_lit": 15.1}
     pos = {h: (xs[h], y0) for h in HOLE_ORDER}
-    pos[None] = (1.5, 0.5)
-    bw, bh = 2.0, 0.95
+    pos[None] = (1.6, 0.5)
+    bw, bh = 2.5, 0.95
     for h in HOLE_ORDER:
         x, y = pos[h]
         _box(ax, x, y, bw, bh, f"{h}\n{count_label[h]}", face=HOLE_FACE[h], edge=HOLE_EDGE[h],
@@ -257,22 +282,20 @@ def fig_state_machine() -> Path:
     # main chain
     _arrow(ax, (Rx("policy"), y0), (Lx("action_schema"), y0), label="ADD_RULE",
            color=HOLE_EDGE["policy"], fs=8.5)
-    _arrow(ax, (Rx("action_schema"), y0), (Lx("aux_var"), y0), label="schema=X",
+    _arrow(ax, (Rx("action_schema"), y0), (Lx("pre_lit"), y0), label="schema=X",
            color=HOLE_EDGE["action_schema"], fs=8.5)
-    _arrow(ax, (Rx("aux_var"), y0), (Lx("pre_lit"), y0), label="SKIP_AUX /\nadd_aux:T",
-           color=HOLE_EDGE["aux_var"], fs=8.5)
     _arrow(ax, (Rx("pre_lit"), y0), (Lx("goal_lit"), y0), label="STOP_PRE",
            color=HOLE_EDGE["pre_lit"], fs=8.5)
     # self-loops (add a literal)
     _arrow(ax, (pos["pre_lit"][0] - 0.5, y0 + bh / 2), (pos["pre_lit"][0] + 0.5, y0 + bh / 2),
            rad=-1.7, color=HOLE_EDGE["pre_lit"], lw=1.3)
-    ax.text(pos["pre_lit"][0], y0 + bh / 2 + 0.95, "pre:lit", ha="center", va="center",
-            fontsize=8, family="monospace",
+    ax.text(pos["pre_lit"][0], y0 + bh / 2 + 0.95, "pre:lit\n(may introduce ?v_i)", ha="center",
+            va="center", fontsize=7.6, family="monospace",
             bbox=dict(boxstyle="round,pad=0.16", fc="white", ec="#cfcfcf", lw=0.4))
     _arrow(ax, (pos["goal_lit"][0] - 0.5, y0 + bh / 2), (pos["goal_lit"][0] + 0.5, y0 + bh / 2),
            rad=-1.7, color=HOLE_EDGE["goal_lit"], lw=1.3)
-    ax.text(pos["goal_lit"][0], y0 + bh / 2 + 0.95, "goal:lit  (±)", ha="center", va="center",
-            fontsize=8, family="monospace",
+    ax.text(pos["goal_lit"][0], y0 + bh / 2 + 0.95, "goal:lit  (±)\n(no new vars)", ha="center",
+            va="center", fontsize=7.6, family="monospace",
             bbox=dict(boxstyle="round,pad=0.16", fc="white", ec="#cfcfcf", lw=0.4))
     # FINISH_RULE: goal_lit -> policy, big arc over the top
     _arrow(ax, (pos["goal_lit"][0], y0 + bh / 2 + 0.05), (pos["policy"][0], y0 + bh / 2 + 0.05),
@@ -287,17 +310,21 @@ def fig_state_machine() -> Path:
     ax.text(pos["policy"][0] + 0.18, (y0 - bh / 2 + pos[None][1] + bh / 2) / 2,
             "STOP_POLICY  (#rules ≥ 1)", ha="left", va="center", fontsize=9, family="monospace",
             bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="#cfcfcf", lw=0.4))
+    # widest-hole marker on pre_lit
+    ax.text(pos["pre_lit"][0], y0 - bh / 2 - 0.32, "← widest hole-kind", ha="center", va="center",
+            fontsize=8.0, color=HOLE_EDGE["pre_lit"], fontweight="bold")
     # initial state
     _arrow(ax, (Lx("policy") - 1.0, y0), (Lx("policy"), y0), color="#202124", lw=1.7)
     ax.text(Lx("policy") - 1.1, y0, "s₀", ha="right", va="center", fontsize=12, fontweight="bold")
 
-    ax.set_title("Figure D1 — the lifted derivation game: state space as a hole-kind state machine\n"
+    ax.set_title("Figure D1 — the lifted derivation game: state space as a hole-kind state machine "
+                 "(occurrence-introduced-variable grammar — no aux_var hole)\n"
                  "a state is  s = (completed rules, partial rule under construction, current hole);  "
                  "the per-hole legal-production counts |A(s)| size the MCTS action head (M = "
-                 f"compute_max_productions(cfg, sig) = {M})",
-                 fontsize=11.5, fontweight="bold")
-    ax.set_xlim(-1.4, 18.3)
-    ax.set_ylim(-0.6, 6.0)
+                 f"compute_max_productions(cfg, sig) = {M}, attained at the pre_lit hole)",
+                 fontsize=11.0, fontweight="bold")
+    ax.set_xlim(-1.4, 17.2)
+    ax.set_ylim(-0.8, 6.0)
     ax.set_aspect("equal")
     ax.axis("off")
     fig.tight_layout()
@@ -313,7 +340,7 @@ def fig_state_machine() -> Path:
 
 def fig_example_derivation() -> Path:
     cfg, sig = _grammar()
-    steps, final = _state_after(cfg, sig, _RHO1)
+    steps, final = _state_after(cfg, sig, _RHO2)
     assert final.is_terminal()
     rows = [(st.current_hole, _partial_str(st), prod.label) for st, prod in steps]
     n = len(rows)
@@ -348,10 +375,10 @@ def fig_example_derivation() -> Path:
             bbox=dict(boxstyle="round,pad=0.25", fc="#f7f2fc", ec="#8430ce", lw=1.0))
 
     ax.set_title("Figure D3 — one derivation as a path through the transition δ\n"
-                 "actions are grammar productions; the Stage-1 hand-policy rule ρ₁ (drop-at-goal) is "
-                 "built in 8 productions, then STOP_POLICY ends the play (state read from a live "
-                 "LiftedDerivationState)",
-                 fontsize=11.5, fontweight="bold")
+                 "actions are grammar productions; the Stage-1 hand-policy rule ρ₂ (move-toward-goal) is "
+                 "built in 8 productions, then STOP_POLICY — note ?v_0:ball is born inside pre:carrying(?v_0) "
+                 "(a body-local variable, used in conditions only); state read from a live LiftedDerivationState",
+                 fontsize=10.5, fontweight="bold")
     ax.set_xlim(0.0, 13.5)
     ax.set_ylim(y - 1.1, y_top + bh + 0.5)
     ax.axis("off")
@@ -378,10 +405,10 @@ def fig_production_sets() -> Path:
     reps = _rep_states(cfg, sig)
     M = compute_max_productions(cfg, sig)
 
-    fig, axes = plt.subplots(1, 5, figsize=(21.0, 7.4))
+    fig, axes = plt.subplots(1, 4, figsize=(20.0, 7.4))
     for ax, hole in zip(axes, HOLE_ORDER):
         st, prods = reps[hole]
-        widest = (hole == "goal_lit")
+        widest = (hole == "pre_lit")
         ax.axis("off")
         ax.add_patch(FancyBboxPatch((0.02, 0.895), 0.96, 0.09, boxstyle="round,pad=0.01",
                                     transform=ax.transAxes, fc=HOLE_FACE[hole],
@@ -399,10 +426,11 @@ def fig_production_sets() -> Path:
 
     fig.suptitle("Figure D2 — the action space: legal-production sets  A(s) = enumerate_productions(s, cfg, sig)  "
                  "at one representative state per hole kind (Gripper-lite)\n"
-                 f"the goal-literal hole is the widest; the MCTS action head is sized to  "
-                 f"M = compute_max_productions(cfg, sig) = {M}  "
-                 f"(the max over all states, taken with every variable positively bound so safe-negation never filters)",
-                 fontsize=11.5, fontweight="bold")
+                 f"the pre_lit hole-kind is the widest — a state literal may take a fresh body-local variable in any "
+                 f"argument position; the MCTS action head is sized to  M = compute_max_productions(cfg, sig) = {M}  "
+                 f"(the analytic max over all states, computed with the maximal possible variable scope; the rep "
+                 f"states shown have fewer)",
+                 fontsize=10.5, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.92))
     out = OUT / "02_derivation_production_sets.png"
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
@@ -415,39 +443,41 @@ def fig_production_sets() -> Path:
 # ---------------------------------------------------------------------------
 
 # one real Rule per rule family — built through the grammar (selectors), so the
-# variable names come out canonical (?b_0 / ?r_1 / ?aux_0).  ``_RHO1`` (the
-# drop-at-goal rule) is the goal-conditioned exemplar; it is reused as-is.
+# variable names come out canonical (action args ?b_0 / ?r_1 by schema position;
+# body-local vars ?v_0 by introduction order). ``_RHO1`` (drop-at-goal, action
+# args only) is the goal-conditioned exemplar; ``_RHO2`` (move-toward-goal) is
+# the body-local-variable exemplar.
 _FAMILY_GALLERY = [
     ("empty-body",
-     [dict(label="ADD_RULE"), dict(label="schema=drop"), dict(label="SKIP_AUX"),
+     [dict(label="ADD_RULE"), dict(label="schema=drop"),
       dict(label="STOP_PRE"), dict(label="FINISH_RULE"), dict(label="STOP_POLICY")],
      "no body — fires from (almost) any state; the ⊤ ⇒ drop do-nothing attractor lives here (§11)"),
     ("state-reactive",
-     [dict(label="ADD_RULE"), dict(label="schema=pick"), dict(label="SKIP_AUX"),
+     [dict(label="ADD_RULE"), dict(label="schema=pick"),
       dict(pred="at_ball"), dict(pred="handempty"), dict(label="STOP_PRE"),
       dict(label="FINISH_RULE"), dict(label="STOP_POLICY")],
      "preconditions only — reacts to the world state, never reads the goal"),
     ("goal-conditioned   (= hand-policy ρ₁ drop-at-goal)",
      _RHO1,
-     "a positive Goal[…] literal — acts only where this task's goal wants it (§7)"),
+     "a positive Goal[…] literal — acts only where this task's goal wants it (§7); all vars are action args"),
     ("negated-goal guard   (= hand-policy ρ₃ pick)",
-     [dict(label="ADD_RULE"), dict(label="schema=pick"), dict(label="SKIP_AUX"),
+     [dict(label="ADD_RULE"), dict(label="schema=pick"),
       dict(pred="at_ball"), dict(pred="at_robot"), dict(pred="handempty"),
       dict(label="STOP_PRE"), dict(pred="at_ball", negated=True),
       dict(label="FINISH_RULE"), dict(label="STOP_POLICY")],
      "¬Goal[…] (safe — every variable already positively bound) — skip what is already done"),
-    ("auxiliary-witness   (= hand-policy ρ₂ move-toward-goal)",
-     [dict(label="ADD_RULE"), dict(label="schema=move"), dict(label="add_aux:ball"),
-      dict(pred="at_robot"), dict(pred="carrying"), dict(label="STOP_PRE"),
-      dict(pred="at_ball", negated=False, argnames=("?aux_0", "?r_1")),
-      dict(label="FINISH_RULE"), dict(label="STOP_POLICY")],
-     "?aux_0 is a witness var (used in conditions, never in the action) — picks the move target (§8)"),
+    ("body-local-variable   (= hand-policy ρ₂ move-toward-goal)",
+     _RHO2,
+     "?v_0:ball is born in carrying(?v_0) (a body-local / existential var, used in conditions only, never "
+     "in the action) and reused in Goal[at_ball(?v_0, ?r_1)] — picks the move target (§8)"),
 ]
 
 
 def _r1_policy_count() -> int:
-    """|Π_Γ,cfg| at the r1 config — read from the committed landscape data
-    (``unique_policies_evaluated`` under the ``none`` setting), not transcribed."""
+    """|Π_Γ,cfg| at the *old aux-var grammar's* r1 config — read from the
+    committed landscape data (``unique_policies_evaluated`` under the ``none``
+    setting), not transcribed. Not re-enumerated for the occurrence-introduced
+    grammar; shown as an order-of-magnitude reference (see legacy/02.md)."""
     p = REPO_ROOT / "docs" / "notes" / "stage4" / "data" / "landscape_r1.json"
     try:
         return int(json.loads(p.read_text())["none"]["unique_policies_evaluated"])
@@ -459,8 +489,9 @@ def fig_hypothesis_class() -> Path:
     cfg_default = LiftedGrammarConfig()
     cfg_exp = LiftedGrammarConfig(max_rules=3)
     sig = gripper_lite_signature()
+    from alphazeropp.synthesis.lifted_grammar import legacy_grammar_config  # noqa: E402
     M = compute_max_productions(cfg_default, sig)
-    M_rel = compute_max_productions(LiftedGrammarConfig(goal_predicate_relevance=True), sig)
+    M_legacy = compute_max_productions(legacy_grammar_config(), sig)
     n_r1 = _r1_policy_count()
 
     fig, axd = plt.subplot_mosaic(
@@ -475,14 +506,15 @@ def fig_hypothesis_class() -> Path:
     ax.add_patch(FancyBboxPatch((0.02, 0.875), 0.96, 0.105, boxstyle="round,pad=0.012",
                                 transform=ax.transAxes, fc=HOLE_FACE["policy"],
                                 ec=HOLE_EDGE["policy"], lw=2.0))
-    ax.text(0.5, 0.925, "the capacity tuple   cfg = (R, L_S, L_G, V_aux)",
+    ax.text(0.5, 0.925, "the capacity tuple   cfg = (R, L_S, L_G, V_b)",
             transform=ax.transAxes, ha="center", va="center", fontsize=13.5,
             fontweight="bold", family="monospace")
     caps_lines = [
-        f"R      = max_rules         = {cfg_default.max_rules}     rules in a policy        (experiments: 3 — Run B: 4)",
-        f"L_S    = max_pre_literals   = {cfg_default.max_pre_literals}     precondition (state) literals / rule",
-        f"L_G    = max_goal_literals  = {cfg_default.max_goal_literals}     goal literals / rule",
-        f"V_aux  = max_aux_vars       = {cfg_default.max_aux_vars}     auxiliary witness vars / rule",
+        f"R      = max_rules            = {cfg_default.max_rules}     rules in a policy        (experiments: 3 — Run B: 4)",
+        f"L_S    = max_pre_literals      = {cfg_default.max_pre_literals}     precondition (state) literals / rule",
+        f"L_G    = max_goal_literals     = {cfg_default.max_goal_literals}     goal literals / rule",
+        f"V_b    = max_body_local_vars   = {cfg_default.max_body_local_vars}     body-local (existential) vars / rule",
+        "         (born inside the precondition literal that first uses them — no Aux phase)",
         "",
         "switched OFF this stage:",
         f"  allow_disjunction    = {cfg_default.allow_disjunction}     (no ∨ inside a rule body)",
@@ -490,10 +522,13 @@ def fig_hypothesis_class() -> Path:
         f"  allow_constants      = {cfg_default.allow_constants}     (no object constants in rules)",
         f"  allow_goal_negation  = {cfg_default.allow_goal_negation}      (¬Goal[…] allowed — when safe)",
         "",
+        "ON by default (Stage 3-A): goal_predicate_relevance, require_goal_var_connected",
+        "  (the latter is vacuous-by-construction here — goal lits introduce no vars)",
+        "",
         "→ L(Γ_cfg) = ordered first-applicable decision lists of ≤ R such rules",
     ]
     ax.text(0.035, 0.80, "\n".join(caps_lines), transform=ax.transAxes, ha="left", va="top",
-            fontsize=10.2, family="monospace", color="#202124")
+            fontsize=9.6, family="monospace", color="#202124")
 
     # --- panel B: how big is the program space -----------------------------
     ax = axd["space"]
@@ -504,21 +539,20 @@ def fig_hypothesis_class() -> Path:
             ha="center", va="center", fontsize=13.5, fontweight="bold", family="monospace")
     space_lines = [
         f"action-head width   M(cfg, Σ) = compute_max_productions = {M}",
-        f"   (the goal_lit hole dominates — Fig D2; drops to {M_rel} with",
-        f"    goal_predicate_relevance on)",
+        f"   (the pre_lit hole dominates — a state literal may take a fresh",
+        f"    body-local var in any position; {M_legacy} with legacy_grammar_config(),",
+        f"    i.e. both safety flags off)",
         "",
-        f"|Π_Γ,cfg|  at the r1 config (R,L_S,L_G,V_aux) = (1,2,1,1):",
-        f"   {n_r1:,} distinct policies — small enough to enumerate",
-        f"   exhaustively (the r1 row of ../02.md Table 2)",
-        "",
-        f"r3 config (R=3): exhaustive enumeration is infeasible —",
-        f"   stratified-sampled, 5,000 policies",
+        f"|Π_Γ,cfg|: order-of-magnitude reference from the OLD aux-var",
+        f"   grammar's r1 config — ≈{n_r1:,} distinct policies (legacy/02.md",
+        f"   Table 2); not re-enumerated for the occurrence-introduced grammar",
         "",
         f"depth: R ≥ 3 is required for ANY M_B-solver — the r1 (R=1)",
-        f"   row finds zero (../02.md Table 2)",
+        f"   landscape sweep finds zero (legacy/02.md Table 2)",
         "",
-        "the bottleneck is NOT capacity — it is solver density (≤ 0.1 %)",
-        "and a deceptive landscape (§10–§11; ../02.md Figs L1, L2, L4)",
+        "the bottleneck is NOT capacity — it is solver density (≤ 0.1 %",
+        "in the legacy aux-var landscape) and a deceptive sparse-reward",
+        "landscape (§10–§11; legacy/02.md Figs L1, L2, L4)",
     ]
     ax.text(0.035, 0.80, "\n".join(space_lines), transform=ax.transAxes, ha="left", va="top",
             fontsize=10.2, family="monospace", color="#202124")
@@ -549,10 +583,10 @@ def fig_hypothesis_class() -> Path:
 
     fig.suptitle(
         "Figure D8 — the hypothesis class  L(Γ_cfg):  an ordered list of ≤ R rules, each  "
-        "(≤ L_S preconditions ∧ ≤ L_G goal literals, with ≤ V_aux witness vars)  ⇒  one action schema\n"
+        "(≤ L_S preconditions ∧ ≤ L_G goal literals, with ≤ V_b body-local vars)  ⇒  one action schema\n"
         f"the four caps + the disabled switches fix what is expressible; the space is small "
-        f"(M = {M} productions wide; the r1 config fully enumerable at {n_r1:,} policies) — the difficulty is density / landscape, not capacity",
-        fontsize=12.0, fontweight="bold")
+        f"(M = {M} productions wide; ≈{n_r1:,} policies at the old aux-var r1 config) — the difficulty is density / landscape, not capacity",
+        fontsize=11.5, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.925))
     out = OUT / "02_derivation_hypothesis_class.png"
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
@@ -586,11 +620,11 @@ def _state_card_lines(st) -> list[str]:
         lines.append("  partial         = None")
     else:
         lines.append("  partial         = PartialRule(")
-        lines.append(f"      schema      = {p.schema!r}" if p.schema is not None else "      schema      = None")
-        lines.append(f"      action_args = {_fmt_vars(p.action_args)}")
-        lines.append(f"      aux_vars    = {_fmt_vars(p.aux_vars)}")
-        lines.append(f"      state_lits  = {_fmt_lits(p.state_lits)}")
-        lines.append(f"      goal_lits   = {_fmt_lits(p.goal_lits)}  )")
+        lines.append(f"      schema          = {p.schema!r}" if p.schema is not None else "      schema          = None")
+        lines.append(f"      action_args     = {_fmt_vars(p.action_args)}")
+        lines.append(f"      body_local_vars = {_fmt_vars(p.body_local_vars)}")
+        lines.append(f"      state_lits      = {_fmt_lits(p.state_lits)}")
+        lines.append(f"      goal_lits       = {_fmt_lits(p.goal_lits)}  )")
     ch = st.current_hole
     lines.append(f"  current_hole    = {ch!r}" + ("   (= ⊥ — terminal)" if ch is None else ""))
     lines.append(")")
@@ -606,21 +640,22 @@ def _state_card_lines(st) -> list[str]:
 _ANATOMY = [
     ("s₀ — the initial state\n(no rules, no rule in progress)",
      []),
-    ("after  ADD_RULE\n(a fresh, empty PartialRule is opened)",
-     [dict(label="ADD_RULE")]),
-    ("after  ADD_RULE → schema=move → add_aux:ball\n(action chosen; one auxiliary variable added)",
-     [dict(label="ADD_RULE"), dict(label="schema=move"), dict(label="add_aux:ball")]),
-    ("after  …drop → SKIP_AUX → pre:at_robot(?r_1) → pre:carrying(?b_0)\n(two state preconditions accumulated)",
-     [dict(label="ADD_RULE"), dict(label="schema=drop"), dict(label="SKIP_AUX"),
-      dict(pred="at_robot"), dict(pred="carrying")]),
-    ("after  … → STOP_PRE → goal:Goal[at_ball(?b_0, ?r_1)]\n(one goal literal accumulated)",
-     [dict(label="ADD_RULE"), dict(label="schema=drop"), dict(label="SKIP_AUX"),
-      dict(pred="at_robot"), dict(pred="carrying"), dict(label="STOP_PRE"),
-      dict(pred="at_ball", negated=False)]),
-    ("terminal — after  … → FINISH_RULE → STOP_POLICY\n(rule ρ₁ sealed; policy complete)",
-     [dict(label="ADD_RULE"), dict(label="schema=drop"), dict(label="SKIP_AUX"),
-      dict(pred="at_robot"), dict(pred="carrying"), dict(label="STOP_PRE"),
-      dict(pred="at_ball", negated=False), dict(label="FINISH_RULE"), dict(label="STOP_POLICY")]),
+    ("after  ADD_RULE → schema=move\n(action chosen; action_args = (?r_0, ?r_1) — no body-local vars yet)",
+     [dict(label="ADD_RULE"), dict(label="schema=move")]),
+    ("after  … → pre:at_robot(?r_0)\n(one state precondition over an action argument)",
+     [dict(label="ADD_RULE"), dict(label="schema=move"), dict(pred="at_robot")]),
+    ("after  … → pre:carrying(?v_0)\n(this literal *introduces* ?v_0:ball — body_local_vars grows)",
+     [dict(label="ADD_RULE"), dict(label="schema=move"), dict(pred="at_robot"),
+      dict(pred="carrying")]),
+    ("after  … → STOP_PRE → goal:Goal[at_ball(?v_0, ?r_1)]\n(one goal literal — references only in-scope vars; introduces none)",
+     [dict(label="ADD_RULE"), dict(label="schema=move"), dict(pred="at_robot"),
+      dict(pred="carrying"), dict(label="STOP_PRE"),
+      dict(pred="at_ball", negated=False, argnames=("?v_0", "?r_1"))]),
+    ("terminal — after  … → FINISH_RULE → STOP_POLICY\n(rule ρ₂ sealed; policy complete)",
+     [dict(label="ADD_RULE"), dict(label="schema=move"), dict(pred="at_robot"),
+      dict(pred="carrying"), dict(label="STOP_PRE"),
+      dict(pred="at_ball", negated=False, argnames=("?v_0", "?r_1")),
+      dict(label="FINISH_RULE"), dict(label="STOP_POLICY")]),
 ]
 
 
@@ -646,10 +681,10 @@ def fig_state_anatomy() -> Path:
         "Figure D4 — what a derivation state is, explicitly: six representative LiftedDerivationStates, "
         "every field shown\n"
         "s = (completed_rules, partial, current_hole);  partial is a PartialRule"
-        "(schema, action_args, aux_vars, state_lits, goal_lits) while a rule is being built, else None;  "
-        "current_hole ∈ {policy, action_schema, aux_var, pre_lit, goal_lit, ⊥}  —  exactly one open hole  "
-        "(values read live off the state object; pretty() is the MCTS node key)",
-        fontsize=11.0, fontweight="bold")
+        "(schema, action_args, body_local_vars, state_lits, goal_lits) while a rule is being built, else None;  "
+        "current_hole ∈ {policy, action_schema, pre_lit, goal_lit, ⊥}  —  exactly one open hole;  body_local_vars "
+        "grows when a pre:ℓ literal introduces a fresh ?v_i  (values read live off the state object; pretty() is the MCTS node key)",
+        fontsize=10.5, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.92))
     out = OUT / "02_derivation_state_anatomy.png"
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
@@ -685,7 +720,7 @@ def _evo_cells(st) -> list[str]:
         sub = [
             (repr(p.schema) if p.schema is not None else "None"),
             (", ".join(v.name for v in p.action_args) if p.action_args else "()"),
-            (", ".join(v.name for v in p.aux_vars) if p.aux_vars else "()"),
+            (", ".join(v.name for v in p.body_local_vars) if p.body_local_vars else "()"),
             (" ∧ ".join(l.pretty() for l in p.state_lits) if p.state_lits else "()"),
             (" ∧ ".join(l.pretty() for l in p.goal_lits) if p.goal_lits else "()"),
         ]
@@ -695,13 +730,13 @@ def _evo_cells(st) -> list[str]:
 
 def fig_state_evolution() -> Path:
     cfg, sig = _grammar()
-    trace = _walk(cfg, sig, _RHO1)                       # 10 states, 9 productions
-    rho1 = trace[-1][0].completed_rules[0].pretty()
+    trace = _walk(cfg, sig, _RHO2)                       # 9 states, 8 productions
+    rho2 = trace[-1][0].completed_rules[0].pretty()
 
     field_titles = ["completed_rules", "partial.schema", "partial.action_args",
-                    "partial.aux_vars", "partial.state_lits", "partial.goal_lits", "current_hole"]
+                    "partial.body_local_vars", "partial.state_lits", "partial.goal_lits", "current_hole"]
     headers = ["state", "production applied"] + field_titles
-    widths = [0.050, 0.165, 0.075, 0.065, 0.110, 0.075, 0.235, 0.115, 0.110]   # sums to 1.0
+    widths = [0.042, 0.150, 0.066, 0.058, 0.096, 0.118, 0.215, 0.122, 0.133]   # sums to 1.0
     starts, acc = [], 0.0
     for w in widths:
         starts.append(acc)
@@ -750,16 +785,17 @@ def fig_state_evolution() -> Path:
                     color=color, fontweight=fw)
         ax.axhline(y - 0.45, color="#ececec", lw=0.5, zorder=0)
 
-    ax.text(0.0, -0.45, f"ρ₁  =  {rho1}", ha="left", va="center", fontsize=8.4, family="monospace",
+    ax.text(0.0, -0.45, f"ρ₂  =  {rho2}", ha="left", va="center", fontsize=8.4, family="monospace",
             color="#8430ce", fontweight="bold")
     ax.text(0.0, -1.05, "highlighted cell = the one field the production changed;   "
-            "“·” = partial is None (no rule in progress);   ⊥ = terminal (current_hole is None)",
+            "“·” = partial is None (no rule in progress);   ⊥ = terminal (current_hole is None);   "
+            "pre:carrying(?v_0) changes BOTH partial.state_lits and partial.body_local_vars",
             ha="left", va="center", fontsize=7.8, color="#5f6368")
     ax.set_title("Figure D5 — how a derivation state evolves: a field-by-field diff along the build of "
-                 "hand-policy rule ρ₁\n"
-                 "9 productions (then STOP_POLICY); each row is a state s_i, each highlighted cell the field "
-                 "the production δ changed (states read live off LiftedDerivationState)",
-                 fontsize=11.0, fontweight="bold")
+                 "hand-policy rule ρ₂ (move-toward-goal)\n"
+                 "8 productions (then STOP_POLICY); each row is a state s_i, each highlighted cell the field "
+                 "the production δ changed — note ?v_0:ball is born inside pre:carrying(?v_0)",
+                 fontsize=10.5, fontweight="bold")
     fig.tight_layout()
     out = OUT / "02_derivation_state_evolution.png"
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
@@ -772,15 +808,14 @@ def fig_state_evolution() -> Path:
 # ---------------------------------------------------------------------------
 
 _PER_RULE_SEGMENTS = [   # (label, colour, group)  — bottom-to-top build order of one rule
-    ("ADD_RULE",                  "#1a73e8", "fixed"),
-    ("schema = X",                "#d93025", "fixed"),
-    ("SKIP_AUX  |  add_aux : T",  "#f9ab00", "fixed"),
-    ("pre : lit 1",               "#34a853", "pre"),
-    ("pre : lit 2",               "#62bd77", "pre"),
-    ("pre : lit 3",               "#90d3a0", "pre"),
-    ("STOP_PRE",                  "#188038", "fixed"),
-    ("goal : lit 1",              "#8430ce", "goal"),
-    ("FINISH_RULE",               "#6a1b9a", "fixed"),
+    ("ADD_RULE",                          "#1a73e8", "fixed"),
+    ("schema = X",                        "#d93025", "fixed"),
+    ("pre : lit 1   (may introduce ?v_i)", "#34a853", "pre"),
+    ("pre : lit 2",                       "#62bd77", "pre"),
+    ("pre : lit 3",                       "#90d3a0", "pre"),
+    ("STOP_PRE",                          "#188038", "fixed"),
+    ("goal : lit 1",                      "#8430ce", "goal"),
+    ("FINISH_RULE",                       "#6a1b9a", "fixed"),
 ]
 
 
@@ -804,8 +839,8 @@ def _random_lengths(cfg, sig, n=5000, seed=0):
 def fig_production_lengths() -> Path:
     cfg, sig = _grammar()
     P, G = cfg.max_pre_literals, cfg.max_goal_literals          # 3, 1
-    FIXED = 5                                                   # ADD_RULE, schema, aux-decision, STOP_PRE, FINISH_RULE
-    per_rule_min, per_rule_max = FIXED, FIXED + P + G           # 5, 9
+    FIXED = 4                                                   # ADD_RULE, schema, STOP_PRE, FINISH_RULE
+    per_rule_min, per_rule_max = FIXED, FIXED + P + G           # 4, 8
 
     fig, axes = plt.subplots(1, 3, figsize=(19.5, 6.6))
 
@@ -815,46 +850,47 @@ def fig_production_lengths() -> Path:
         ax.bar(0, 1.0, bottom=i, width=0.42, color=color, edgecolor="white", lw=0.8,
                hatch=("" if grp == "fixed" else "//"))
         ax.text(0.27, i + 0.5, name, ha="left", va="center", fontsize=8.4, family="monospace")
-    ax.plot([-0.30, -0.30], [3, 6], color="#188038", lw=2.4)
-    ax.text(-0.36, 4.5, "≤ P = 3\npre-literals", ha="right", va="center", fontsize=8.2, color="#188038")
-    ax.plot([-0.30, -0.30], [7, 8], color="#8430ce", lw=2.4)
-    ax.text(-0.36, 7.5, "≤ G = 1\ngoal-literal", ha="right", va="center", fontsize=8.2, color="#8430ce")
+    ax.plot([-0.30, -0.30], [2, 5], color="#188038", lw=2.4)
+    ax.text(-0.36, 3.5, "≤ P = 3\npre-literals", ha="right", va="center", fontsize=8.2, color="#188038")
+    ax.plot([-0.30, -0.30], [6, 7], color="#8430ce", lw=2.4)
+    ax.text(-0.36, 6.5, "≤ G = 1\ngoal-literal", ha="right", va="center", fontsize=8.2, color="#8430ce")
     ax.text(0.3, -0.6, "solid = fixed       hatched = variable  (0 … P  /  0 … G)", ha="center",
             va="center", fontsize=8.0, color="#5f6368")
-    ax.set_xlim(-1.25, 1.85)
-    ax.set_ylim(-1.0, 9.6)
+    ax.set_xlim(-1.25, 2.2)
+    ax.set_ylim(-1.0, 8.6)
     ax.set_xticks([])
-    ax.set_yticks(range(0, 10))
+    ax.set_yticks(range(0, 9))
     ax.set_ylabel("productions, in build order")
     ax.set_title(f"(a) one rule  =  {FIXED} fixed  +  ≤P pre-lits  +  ≤G goal-lits\n"
-                 f"→  {per_rule_min} … {per_rule_max} productions per rule  (Gripper-lite: P={P}, G={G})",
-                 fontsize=9.5)
+                 f"→  {per_rule_min} … {per_rule_max} productions per rule  (Gripper-lite: P={P}, G={G})  "
+                 f"— no aux phase",
+                 fontsize=9.0)
 
     # --- (b) complete-policy production count vs the grammar cap R ---
     ax = axes[1]
     Rs = list(range(1, 5))
-    lmax = [R * (P + G + FIXED) + 1 for R in Rs]                # [10, 19, 28, 37]
-    lmin = [FIXED + 1] * len(Rs)                                # 6 (one empty rule + STOP_POLICY), any R
+    lmax = [R * (P + G + FIXED) + 1 for R in Rs]                # [9, 17, 25, 33]
+    lmin = [FIXED + 1] * len(Rs)                                # 5 (one empty rule + STOP_POLICY), any R
     ax.fill_between(Rs, lmin, lmax, color="#e8f0fe", alpha=0.95, label="reachable  ℓ(π)")
-    ax.plot(Rs, lmax, "-o", color="#1a73e8", lw=1.9, label="max = R·(P+G+5)+1")
-    ax.plot(Rs, lmin, "--", color="#5f6368", lw=1.5, label="min = 6  (one empty rule + STOP_POLICY)")
+    ax.plot(Rs, lmax, "-o", color="#1a73e8", lw=1.9, label="max = R·(P+G+4)+1")
+    ax.plot(Rs, lmin, "--", color="#5f6368", lw=1.5, label="min = 5  (one empty rule + STOP_POLICY)")
     for R, m in zip(Rs, lmax):
         ax.annotate(str(m), (R, m), textcoords="offset points", xytext=(0, 7), ha="center",
                     fontsize=8.6, color="#1a73e8")
-    ax.scatter([3], [28], s=80, facecolor="none", edgecolor="#d93025", lw=1.9, zorder=5)
-    ax.annotate("Run A grammar (R=3)", (3, 28), textcoords="offset points", xytext=(-6, -20),
+    ax.scatter([3], [25], s=80, facecolor="none", edgecolor="#d93025", lw=1.9, zorder=5)
+    ax.annotate("experiments' grammar (R=3)", (3, 25), textcoords="offset points", xytext=(-8, -20),
                 ha="center", fontsize=8.0, color="#d93025")
-    ax.scatter([4], [37], s=80, facecolor="none", edgecolor="#d93025", lw=1.9, zorder=5)
-    ax.annotate("Run B grammar (R=4)", (4, 37), textcoords="offset points", xytext=(-44, -16),
+    ax.scatter([4], [33], s=80, facecolor="none", edgecolor="#d93025", lw=1.9, zorder=5)
+    ax.annotate("default / Run B (R=4)", (4, 33), textcoords="offset points", xytext=(-40, -16),
                 ha="center", fontsize=8.0, color="#d93025")
-    ax.axhline(9, color="#188038", lw=1.3, ls=":")
-    ax.text(1.05, 10.2, "ρ₁-only example (Fig. D5):  ℓ = 9", fontsize=7.9, color="#188038")
+    ax.axhline(8, color="#8430ce", lw=1.3, ls=":")
+    ax.text(1.05, 9.1, "ρ₂-only example (Fig. D5):  ℓ = 8", fontsize=7.9, color="#8430ce")
     ax.set_xticks(Rs)
     ax.set_xlim(0.7, 4.5)
     ax.set_xlabel("grammar cap   R = max_rules")
     ax.set_ylabel("ℓ(π)  =  #productions to build a complete policy")
-    ax.set_ylim(0, 42)
-    ax.set_title("(b) complete-policy production count\nℓ(π) = 1 + Σᵢ ( 5 + |preᵢ| + |goalᵢ| ),   1 ≤ k ≤ R",
+    ax.set_ylim(0, 38)
+    ax.set_title("(b) complete-policy production count\nℓ(π) = 1 + Σᵢ ( 4 + |preᵢ| + |goalᵢ| ),   1 ≤ k ≤ R",
                  fontsize=9.5)
     ax.legend(fontsize=7.7, loc="upper left")
     ax.grid(alpha=0.25)
@@ -864,10 +900,10 @@ def fig_production_lengths() -> Path:
     lengths = _random_lengths(cfg, sig, n=5000, seed=0)
     lo, hi = min(lengths), max(lengths)
     mean = sum(lengths) / len(lengths)
-    ax.hist(lengths, bins=range(6, 31), color="#1a73e8", alpha=0.85, edgecolor="white", lw=0.6)
+    ax.hist(lengths, bins=range(5, 28), color="#1a73e8", alpha=0.85, edgecolor="white", lw=0.6)
     ax.axvline(mean, color="#d93025", lw=2.1, label=f"mean = {mean:.1f}")
-    ax.axvline(28, color="#5f6368", lw=1.3, ls="--", label="analytic max = 28  (R=3)")
-    ax.axvline(6, color="#5f6368", lw=1.3, ls=":", label="analytic min = 6")
+    ax.axvline(25, color="#5f6368", lw=1.3, ls="--", label="analytic max = 25  (R=3)")
+    ax.axvline(5, color="#5f6368", lw=1.3, ls=":", label="analytic min = 5")
     ax.set_xlabel("ℓ(π)  =  #productions   (R=3, uniform-random derivation)")
     ax.set_ylabel("count   (of 5000 random complete policies)")
     ax.set_title("(c) the uniform prior favours short policies\n5000 uniform-random derivations, "
@@ -875,7 +911,7 @@ def fig_production_lengths() -> Path:
     ax.legend(fontsize=7.9)
 
     fig.suptitle("Figure D6 — how long is a derivation?  per-rule structure (a), the analytic length range "
-                 "ℓ(π) ∈ [6, R·(P+G+5)+1] (b), and the empirical distribution under a uniform prior (c)",
+                 "ℓ(π) ∈ [5, R·(P+G+4)+1] (b), and the empirical distribution under a uniform prior (c)",
                  fontsize=11.5, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.93))
     out = OUT / "02_derivation_production_lengths.png"
@@ -890,12 +926,12 @@ def fig_production_lengths() -> Path:
 
 # The three Stage-1 hand-policy rules, each as a selector segment (no trailing
 # STOP_POLICY). ρ₁ — drop a carried ball when it is already at its goal room;
-# ρ₂ — move toward the room a carried ball should go to; ρ₃ — pick up a
-# misplaced ball you are standing on with a free hand.
+# ρ₂ — move toward the room a carried ball should go to (its ?v_0:ball is a
+# body-local variable, born inside carrying(?v_0)); ρ₃ — pick up a misplaced ball
+# you are standing on with a free hand.
 _RHO1_SEG = [
     dict(label="ADD_RULE"),
     dict(label="schema=drop"),
-    dict(label="SKIP_AUX"),
     dict(pred="at_robot"),                                       # at_robot(?r_1)
     dict(pred="carrying"),                                       # carrying(?b_0)
     dict(label="STOP_PRE"),
@@ -905,17 +941,15 @@ _RHO1_SEG = [
 _RHO2_SEG = [
     dict(label="ADD_RULE"),
     dict(label="schema=move"),
-    dict(label="add_aux:ball"),
     dict(pred="at_robot"),                                       # at_robot(?r_0)
-    dict(pred="carrying"),                                       # carrying(?aux_0)
+    dict(pred="carrying"),                                       # carrying(?v_0)  ← introduces ?v_0:ball
     dict(label="STOP_PRE"),
-    dict(pred="at_ball", negated=False, argnames=("?aux_0", "?r_1")),  # Goal[at_ball(?aux_0, ?r_1)]
+    dict(pred="at_ball", negated=False, argnames=("?v_0", "?r_1")),  # Goal[at_ball(?v_0, ?r_1)]
     dict(label="FINISH_RULE"),
 ]
 _RHO3_SEG = [
     dict(label="ADD_RULE"),
     dict(label="schema=pick"),
-    dict(label="SKIP_AUX"),
     dict(pred="at_ball", negated=False),                         # at_ball(?b_0, ?r_1)
     dict(pred="at_robot"),                                       # at_robot(?r_1)
     dict(pred="handempty"),                                      # handempty()
@@ -946,7 +980,7 @@ def _build_policy_tree(steps, final) -> _PNode:
     """Fold the production sequence ``steps`` (= ``[(state_before, prod), ...]``)
     into a parse tree mirroring the grammar skeleton
     ``⟨Policy⟩ → ⟨Rule⟩* STOP_POLICY``,
-    ``⟨Rule⟩ → ADD_RULE ⟨ActionSchema⟩ ⟨Aux⟩ ⟨PreList⟩ STOP_PRE ⟨GoalList⟩ FINISH_RULE``."""
+    ``⟨Rule⟩ → ADD_RULE ⟨ActionSchema⟩ ⟨PreList⟩ STOP_PRE ⟨GoalList⟩ FINISH_RULE``."""
     root = _PNode("⟨Policy⟩", "nt")
     rules = final.completed_rules
     cur_rule: _PNode | None = None
@@ -967,11 +1001,6 @@ def _build_policy_tree(steps, final) -> _PNode:
             nt = _PNode("⟨ActionSchema⟩", "nt")
             cur_rule.children.append(nt)
             nt.children.append(_PNode(prod.label, "action_schema"))   # schema=move|pick|drop
-            seg = None
-        elif hk == "aux_var":
-            nt = _PNode("⟨Aux⟩", "nt")
-            cur_rule.children.append(nt)
-            nt.children.append(_PNode(prod.label, "aux_var"))         # SKIP_AUX | add_aux:T
             seg = None
         elif hk == "pre_lit":
             if tag == "add":
@@ -1095,7 +1124,7 @@ def fig_derivation_tree() -> Path:
                for h in HOLE_ORDER]
     handles += [
         Patch(facecolor="#fef6e0", edgecolor="#b06000", label="nonterminal  ⟨Rule⟩"),
-        Patch(facecolor="#f1f3f4", edgecolor="#5f6368", label="nonterminal  ⟨ActionSchema⟩ / ⟨Aux⟩ / ⟨PreList⟩ / ⟨GoalList⟩"),
+        Patch(facecolor="#f1f3f4", edgecolor="#5f6368", label="nonterminal  ⟨ActionSchema⟩ / ⟨PreList⟩ / ⟨GoalList⟩"),
     ]
     ax.legend(handles=handles, loc="lower right", fontsize=8.4, framealpha=0.96)
 
@@ -1103,13 +1132,13 @@ def fig_derivation_tree() -> Path:
     ax.set_ylim(-2.0, n_leaves + 0.6)
     ax.invert_yaxis()                                       # first leaf at the top
     ax.set_title(
-        "Figure D7 — one full derivation of a 3-rule policy, as a grammar parse tree\n"
-        "⟨Policy⟩ → ⟨Rule⟩* STOP_POLICY ;   ⟨Rule⟩ → ADD_RULE ⟨ActionSchema⟩ ⟨Aux⟩ ⟨PreList⟩ "
+        "Figure D7 — one full derivation of a 3-rule policy, as a grammar parse tree (no ⟨Aux⟩ — "
+        "variables are introduced by literal occurrence)\n"
+        "⟨Policy⟩ → ⟨Rule⟩* STOP_POLICY ;   ⟨Rule⟩ → ADD_RULE ⟨ActionSchema⟩ ⟨PreList⟩ "
         "STOP_PRE ⟨GoalList⟩ FINISH_RULE.   Leaves top-to-bottom = the production sequence "
-        "p₁…p_T (the play of Fig. D3, linearised); colour = hole kind; right column = the sealed "
-        "rule ρᵢ each ⟨Rule⟩ subtree yields  (ρ₁ drop-at-goal · ρ₂ move-toward-goal · ρ₃ pick — "
-        "all read live from the grammar).",
-        fontsize=10.5, fontweight="bold")
+        "p₁…p_T; colour = hole kind; right column = the sealed rule ρᵢ each ⟨Rule⟩ subtree yields "
+        "(ρ₁ drop-at-goal · ρ₂ move-toward-goal, with body-local ?v_0 · ρ₃ pick — all read live from the grammar).",
+        fontsize=10.0, fontweight="bold")
     fig.tight_layout()
     out = OUT / "02_derivation_tree.png"
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
