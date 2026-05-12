@@ -207,7 +207,6 @@ class DerivationPolicyValueNet(TorchPolicyValueNet):
         policy_weight = tp["policy_weight"]
 
         criterion_value = nn.MSELoss()
-        criterion_policy = nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(
             model.parameters(),
             lr=tp["learning_rate"],
@@ -252,10 +251,12 @@ class DerivationPolicyValueNet(TorchPolicyValueNet):
                 outputs_policy, outputs_value = model(inputs)
 
                 loss_value = criterion_value(outputs_value, targets_value)
-                loss_policy = criterion_policy(outputs_policy, targets_policy)
+                log_probs = F.log_softmax(outputs_policy, dim=-1)
+                loss_policy = -torch.sum(targets_policy * log_probs, dim=1).mean()
                 loss = loss_value + policy_weight * loss_policy
 
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
 
                 batch_loss = loss.item()

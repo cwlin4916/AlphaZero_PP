@@ -213,6 +213,94 @@ class DoorsRelationalRuntime:
         return Flip(self.action_move_to(self.goal_location()))
 
     # -------------------------------------------------------------------
+    # Stage 3.1: typed-binding queries
+    # -------------------------------------------------------------------
+
+    def objects_of_type(self, t: str) -> list[int]:
+        if t == "room":
+            return list(range(self.cfg.D))
+        if t == "key":
+            return list(range(self.cfg.K))
+        if t == "loc":
+            return list(range(self.cfg.M))
+        raise ValueError(f"Unknown type: {t!r}")
+
+    def is_next(self, r1: int, r2: int) -> bool:
+        return 0 <= r1 < self.cfg.D - 1 and r2 == r1 + 1
+
+    def query_predicate(
+        self,
+        name: str,
+        args: tuple[int, ...],
+        state,
+    ) -> bool:
+        if name == "at_loc":
+            (l,) = args
+            return bool(state[self.obs_at_loc(LocId(l))]) and 0 <= l < self.cfg.M
+        if name == "locked":
+            (r,) = args
+            if r == 0 or not (0 <= r < self.cfg.D):
+                return False
+            return not bool(state[self.obs_room_unlocked(RoomId(r))])
+        if name == "key_available":
+            (k,) = args
+            if not (0 <= k < self.cfg.K):
+                return False
+            return bool(state[self.obs_key_avail(KeyId(k))])
+        if name == "key_for":
+            k, r = args
+            return 0 <= k < self.cfg.K and self.cfg.key_unlocks[k] == r
+        if name == "loc_of_key":
+            k, l = args
+            return 0 <= k < self.cfg.K and self.cfg.key_loc[k] == l
+        if name == "loc_in_room":
+            l, r = args
+            return 0 <= l < self.cfg.M and self.cfg.loc_room[l] == r
+        if name == "next":
+            r1, r2 = args
+            return self.is_next(r1, r2)
+        if name == "goal_loc":
+            (l,) = args
+            return l == self.cfg.goal_loc
+        raise ValueError(f"Unknown predicate: {name!r}")
+
+    def permute_objects(
+        self,
+        perm_rooms: dict[int, int] | None = None,
+        perm_keys: dict[int, int] | None = None,
+        perm_locs: dict[int, int] | None = None,
+    ) -> "DoorsRelationalRuntime":
+        # Test-only helper: relabel object IDs while preserving static-fact structure.
+        # The returned runtime answers the same relational queries up to renaming.
+        from alphazeropp.instances.doors.dsl.doors_config import DoorsGameConfig
+
+        pr = perm_rooms or {i: i for i in range(self.cfg.D)}
+        pk = perm_keys or {i: i for i in range(self.cfg.K)}
+        pl = perm_locs or {i: i for i in range(self.cfg.M)}
+
+        new_loc_room = [0] * self.cfg.M
+        for old_l, old_r in enumerate(self.cfg.loc_room):
+            new_loc_room[pl[old_l]] = pr[old_r]
+
+        new_key_loc = [0] * self.cfg.K
+        new_key_unlocks = [0] * self.cfg.K
+        for old_k in range(self.cfg.K):
+            new_key_loc[pk[old_k]] = pl[self.cfg.key_loc[old_k]]
+            new_key_unlocks[pk[old_k]] = pr[self.cfg.key_unlocks[old_k]]
+
+        new_cfg = DoorsGameConfig(
+            num_rooms=self.cfg.D,
+            locs_per_room=self.cfg.locs_per_room,
+            horizon=self.cfg.horizon,
+            key_loc=new_key_loc,
+            key_unlocks=new_key_unlocks,
+            loc_room=new_loc_room,
+            goal_loc=pl[self.cfg.goal_loc],
+            start_loc=pl[self.cfg.start_loc],
+        )
+        return DoorsRelationalRuntime(new_cfg, known_map=self.known_map)
+
+    # -------------------------------------------------------------------
     # Validation
     # -------------------------------------------------------------------
 

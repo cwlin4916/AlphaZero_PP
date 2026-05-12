@@ -157,10 +157,21 @@ class Trainer:
 
         elapsed = time.time() - start_time
         logger.debug(f"Training completed in {elapsed:.2f} seconds")
+
+        # Compute MCTS target entropy (irreducible floor of policy loss)
+        policy_entropies = []
+        for _state, policy_target, _value in flat_examples:
+            p = policy_target[policy_target > 0]
+            h = -np.sum(p * np.log(p))
+            policy_entropies.append(h)
+        mcts_target_entropy = float(np.mean(policy_entropies))
+
         statistics = {
             "train_loss": np.mean(train_losses),
             "train_loss_policy": np.mean(policy_losses),
             "train_loss_value": np.mean(value_losses),
+            "mcts_target_entropy": mcts_target_entropy,
+            "policy_kl_gap": float(np.mean(policy_losses) - mcts_target_entropy),
             "num_examples": len(flat_examples),
             "avg_reward": avg_reward,
         }

@@ -31,7 +31,8 @@ def get_device():
     # but we want to support PyTorch 2.2, so:
     if torch.cuda.is_available():
         return "cuda"
-    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-        return "mps"  # Apple Silicon GPU
+    # MPS (Apple Silicon) disabled: TransformerEncoder + LayerNorm produces
+    # NaN during training on MPS as of PyTorch 2.x.  CPU is fine for our
+    # small models and MCTS-dominated workloads.
     else:
         return "cpu"
